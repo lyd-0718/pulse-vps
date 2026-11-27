@@ -291,7 +291,7 @@ func (s *Store) ReadSettings(includeSecrets bool) (SettingsDto, error) {
 	dto := SettingsDto{
 		SiteTitle:       get("site_title", "PulseVPS"),
 		SiteDomain:      get("site_domain", "vps.ydiws.xyz"),
-		PublicAccess:    get("public_access", "masked"),
+		PublicAccess:    get("public_access", "private"),
 		DisplayCurrency: get("display_currency", "CNY"),
 	}
 	if includeSecrets {

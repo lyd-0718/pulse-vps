@@ -129,6 +129,12 @@ func (h *WSHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		token = ExtractBearerToken(r)
 	}
 	authenticated := h.auth.VerifyToken(token)
+	if settings, err := h.store.ReadSettings(false); err == nil {
+		if settings.PublicAccess == "private" && !authenticated {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -200,6 +206,22 @@ func (h *WSHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 func (h *WSHub) remove(c *wsClient) {
 	h.mu.Lock()
 	if _, exists := h.clients[c]; exists {
+		delete(h.clients, c)
+		close(c.send)
+		_ = c.conn.Close()
+	}
+	h.mu.Unlock()
+}
+
+func (h *WSHub) DisconnectUnauthenticated() {
+	h.mu.Lock()
+	var toClose []*wsClient
+	for c := range h.clients {
+		if !c.authenticated {
+			toClose = append(toClose, c)
+		}
+	}
+	for _, c := range toClose {
 		delete(h.clients, c)
 		close(c.send)
 		_ = c.conn.Close()

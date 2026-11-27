@@ -126,6 +126,9 @@ export function App() {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialRoute.nodeId);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [gatePassword, setGatePassword] = useState("");
+  const [gateBusy, setGateBusy] = useState(false);
+  const [gateError, setGateError] = useState("");
   const [nodeFormOpen, setNodeFormOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<NodeDto | null>(null);
   const [installModal, setInstallModal] = useState<{ node: NodeDto; rawToken: string | null } | null>(null);
@@ -231,8 +234,14 @@ export function App() {
     loadLive();
   }, [loadLive]);
 
+  const canStreamLive = liveData !== null && !liveData.requiresAuth;
+
   // WebSocket real-time streaming with automatic reconnect (falls back to HTTP polling if unavailable)
   useEffect(() => {
+    if (!canStreamLive) {
+      setWsConnected(false);
+      return;
+    }
     let closed = false;
     let ws: WebSocket | null = null;
     let retryTimer: number | null = null;
@@ -279,11 +288,11 @@ export function App() {
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       ws?.close();
     };
-  }, [wsReconnectSeq]);
+  }, [canStreamLive, wsReconnectSeq]);
 
-  // Fallback HTTP polling ONLY when WebSocket is disconnected
+  // Fallback HTTP polling ONLY when WebSocket is disconnected and authorized
   useEffect(() => {
-    if (wsConnected) return;
+    if (wsConnected || !canStreamLive) return;
     const onVisibility = () => {
       if (!document.hidden) loadLive();
     };
@@ -295,7 +304,7 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(id);
     };
-  }, [wsConnected, loadLive]);
+  }, [wsConnected, canStreamLive, loadLive]);
 
   // Global keyboard shortcuts (1-4 switch views, / focus search, r refresh)
   useEffect(() => {
@@ -466,7 +475,7 @@ export function App() {
   const requestDeleteNode = (node: NodeDto) => {
     setConfirmState({
       title: `删除主机「${node.name}」？`,
-      description: "将从 D1 数据库永久清除该主机的配置、月流量账本与历史采样曲线。VPS 上仍在运行的 Agent 需手动停止或卸载。",
+      description: "将从数据库永久清除该主机的配置、月流量账本与历史采样曲线。VPS 上仍在运行的 Agent 需手动停止或卸载。",
       confirmLabel: "确认删除",
       tone: "danger",
       onConfirm: async () => {
@@ -577,6 +586,83 @@ export function App() {
   const allOnline = totalNodes > 0 && onlineNodes === totalNodes;
   const fleetDotColor = totalNodes === 0 ? "#8e8e93" : allOnline ? "#34C759" : onlineNodes === 0 ? "#FF3B30" : "#FF9500";
   const isAuthenticatedLive = Boolean(liveData?.authenticated);
+
+  const handleGateLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gatePassword.trim()) return;
+    setGateBusy(true);
+    setGateError("");
+    try {
+      await handleLogin(gatePassword);
+      setGatePassword("");
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : "管理密码错误");
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
+  if (liveData === null && !liveError) {
+    return (
+      <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden text-[#1d1d1f]">
+        <AmbientShader preset={shaderPreset} />
+        <div className="liquid-glass relative z-10 flex items-center gap-3 rounded-full px-5 py-3 text-[13px] font-medium text-[#4c515c]">
+          <RefreshCw className="h-4 w-4 animate-spin text-[#0058c4]" aria-hidden="true" />
+          <span>正在连接控制台…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (liveData?.requiresAuth && !liveData.authenticated) {
+    return (
+      <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden px-4 text-[#1d1d1f]">
+        <AmbientShader preset={shaderPreset} />
+        <main className="liquid-glass relative z-10 w-full max-w-[380px] rounded-[28px] p-7 sm:p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white/85 text-[#0058c4] shadow-[0_0_0_0.5px_rgba(15,23,42,0.08),0_4px_14px_rgba(15,23,42,0.06)]">
+              <Lock className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <h1 className="mt-4 text-[20px] font-semibold tracking-[-0.025em] text-[#1d1d1f]">
+              {activeData.settings.siteTitle || "PulseVPS"}
+            </h1>
+            <p className="mt-1 text-[13px] text-[#4c515c]">
+              私密监控控制台 · 请输入管理员密码继续
+            </p>
+          </div>
+
+          <form onSubmit={handleGateLogin} className="mt-6 space-y-3.5">
+            <label className="block">
+              <span className="sr-only">管理员密码</span>
+              <input
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                value={gatePassword}
+                onChange={(e) => setGatePassword(e.target.value)}
+                placeholder="输入管理员密码"
+                className="liquid-input min-h-[44px] w-full rounded-[14px] px-4 py-2.5 text-[15px] sm:text-[14px]"
+              />
+            </label>
+
+            {gateError && (
+              <div role="alert" className="rounded-[12px] bg-[#ff3b30]/10 px-3.5 py-2 text-[12.5px] font-medium text-[#c41e14]">
+                {gateError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={gateBusy || !gatePassword.trim()}
+              className="liquid-btn-primary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-medium disabled:opacity-50"
+            >
+              {gateBusy ? "正在验证…" : "解锁控制台"}
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-dvh w-full overflow-hidden text-[#1d1d1f]">

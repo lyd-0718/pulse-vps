@@ -51,12 +51,15 @@ func (srv *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":        true,
-			"time":      time.Now().UnixMilli(),
-			"mode":      "selfhost",
-			"wsClients": srv.hub.ClientCount(),
-		})
+		resp := map[string]any{
+			"ok":   true,
+			"time": time.Now().UnixMilli(),
+			"mode": "selfhost",
+		}
+		if srv.isAdmin(r) {
+			resp["wsClients"] = srv.hub.ClientCount()
+		}
+		writeJSON(w, http.StatusOK, resp)
 	})
 
 	mux.HandleFunc("GET /api/ws", srv.hub.ServeWS)
@@ -526,6 +529,9 @@ func (srv *Server) routes() http.Handler {
 			return
 		}
 		settings, _ := srv.store.ReadSettings(true)
+		if settings.PublicAccess == "private" {
+			srv.hub.DisconnectUnauthenticated()
+		}
 		srv.hub.TriggerBroadcast()
 		writeJSON(w, http.StatusOK, map[string]any{"settings": settings})
 	})
