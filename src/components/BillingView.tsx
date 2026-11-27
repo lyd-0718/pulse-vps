@@ -14,7 +14,6 @@ interface BillingViewProps {
   nodes: NodeDto[];
   displayCurrency: CurrencyCode;
   authenticated: boolean;
-  demoMode: boolean;
   onChangeCurrency: (currency: CurrencyCode) => void;
   onEditNode: (node: NodeDto) => void;
   onSelectNode: (nodeId: string) => void;
@@ -26,7 +25,6 @@ export function BillingView({
   nodes,
   displayCurrency,
   authenticated,
-  demoMode,
   onChangeCurrency,
   onEditNode,
   onSelectNode,
@@ -289,7 +287,7 @@ export function BillingView({
                 <th className="px-3 py-3 font-medium">月流量</th>
                 <th className="px-3 py-3 font-medium">到期时间</th>
                 <th className="px-3 py-3 font-medium">续费与备注</th>
-                {authenticated && !demoMode && <th className="px-3 py-3 text-right font-medium">操作</th>}
+                {authenticated && <th className="px-3 py-3 text-right font-medium">操作</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1d1d1f]/[0.06]">
@@ -366,7 +364,7 @@ export function BillingView({
                         )}
                       </div>
                     </td>
-                    {authenticated && !demoMode && (
+                    {authenticated && (
                       <td className="px-3 py-3.5 text-right">
                         <button
                           type="button"

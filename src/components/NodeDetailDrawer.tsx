@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from "react";
-import { AlertCircle, Pencil, Power, RefreshCw, Terminal, Trash2, X } from "lucide-react";
+import { AlertCircle, Pencil, RefreshCw, Terminal, Trash2, X } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -11,7 +11,6 @@ import {
 } from "recharts";
 import type { HistoryPoint, NodeDto } from "../../shared/types";
 import { fetchNodeHistory } from "../lib/api";
-import { generateDemoHistory } from "../lib/demo-data";
 import {
   cycleLabel,
   daysUntil,
@@ -29,13 +28,11 @@ import { RingGauge } from "./RingGauge";
 
 interface NodeDetailDrawerProps {
   node: NodeDto | null;
-  demoMode: boolean;
   authenticated: boolean;
   onClose: () => void;
   onEdit: (node: NodeDto) => void;
   onInstallCmd: (node: NodeDto) => void;
   onDelete: (node: NodeDto) => void;
-  onToggleDemoOffline?: (nodeId: string) => void;
 }
 
 const APPLE_TOOLTIP_STYLE = {
@@ -50,13 +47,11 @@ const APPLE_TOOLTIP_STYLE = {
 
 export function NodeDetailDrawer({
   node,
-  demoMode,
   authenticated,
   onClose,
   onEdit,
   onInstallCmd,
   onDelete,
-  onToggleDemoOffline,
 }: NodeDetailDrawerProps) {
   const titleId = useId();
   const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d">("1h");
@@ -74,11 +69,6 @@ export function NodeDetailDrawer({
     if (!node) return;
     let active = true;
     setHistoryError("");
-    if (demoMode) {
-      setHistory(generateDemoHistory(node, range));
-      setLoadingHistory(false);
-      return;
-    }
     setLoadingHistory(true);
     fetchNodeHistory(node.id, range)
       .then((res) => {
@@ -96,7 +86,7 @@ export function NodeDetailDrawer({
     return () => {
       active = false;
     };
-  }, [node?.id, range, demoMode, retrySeq]);
+  }, [node?.id, range, retrySeq]);
 
   if (!node) return null;
 
@@ -138,22 +128,12 @@ export function NodeDetailDrawer({
             </div>
             <p className="mt-1 text-[12px] text-[#4c515c]">
               {node.provider || node.region} · <span className="font-mono-num">{node.ip || "未上报 IP"}</span> · {node.os || "Linux"} ({node.arch || "amd64"})
-              {!demoMode && node.online && ` · 更新于 ${formatRelativeTime(node.lastSeenAt)}`}
+              {node.online && ` · 更新于 ${formatRelativeTime(node.lastSeenAt)}`}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {demoMode && onToggleDemoOffline && (
-              <button
-                type="button"
-                onClick={() => onToggleDemoOffline(node.id)}
-                className="liquid-btn inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3 text-[12px] font-medium"
-              >
-                <Power className="h-3.5 w-3.5 text-[#4c515c]" />
-                {node.online ? "模拟断线" : "恢复上线"}
-              </button>
-            )}
-            {authenticated && !demoMode && (
+            {authenticated && (
               <>
                 <button
                   type="button"

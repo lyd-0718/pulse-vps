@@ -14,7 +14,6 @@ interface ProbesViewProps {
   probeTargets: ProbeTargetDto[];
   edgeHistory: Record<string, EdgeProbeRecord[]>;
   authenticated: boolean;
-  demoMode: boolean;
   runningProbes: boolean;
   onRunNow: () => void;
   onAddProbe: () => void;
@@ -106,7 +105,6 @@ export function ProbesView({
   probeTargets,
   edgeHistory,
   authenticated,
-  demoMode,
   runningProbes,
   onRunNow,
   onAddProbe,
@@ -170,7 +168,7 @@ export function ProbesView({
     return map;
   }, [nodes, filteredTargets]);
 
-  const canManage = authenticated && !demoMode;
+  const canManage = authenticated;
   const colSpanAll = Math.max(2, nodes.length + 1 + (canManage ? 1 : 0));
 
   return (
@@ -187,7 +185,7 @@ export function ProbesView({
             </p>
           </div>
 
-          {authenticated && !demoMode && (
+          {canManage && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -264,7 +262,7 @@ export function ProbesView({
                           {avgMs > 0 ? `${avgMs} ms` : "待采样"}
                         </div>
                       </div>
-                      {authenticated && !demoMode && (
+                      {canManage && (
                         <button
                           type="button"
                           onClick={() => onRequestDeleteProbe(target)}

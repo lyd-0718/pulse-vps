@@ -15,13 +15,12 @@ import { Sparkline } from "./Sparkline";
 
 interface NodeCardProps {
   node: NodeDto;
-  demoMode: boolean;
   onSelect: (node: NodeDto) => void;
 }
 
 type CardPanelMode = "metrics" | "containers" | "probes";
 
-export function NodeCard({ node, demoMode, onSelect }: NodeCardProps) {
+export function NodeCard({ node, onSelect }: NodeCardProps) {
   const [panelMode, setPanelMode] = useState<CardPanelMode>("metrics");
 
   const unitBase = node.trafficUnitBase === 1000 ? 1000 : 1024;
@@ -285,7 +284,7 @@ export function NodeCard({ node, demoMode, onSelect }: NodeCardProps) {
           )}
         </div>
         <span className="apple-nums text-[11.5px] text-[#555a66]">
-          {demoMode ? "模拟心跳" : `心跳 ${formatRelativeTime(node.lastSeenAt)}`}
+          心跳 {formatRelativeTime(node.lastSeenAt)}
         </span>
       </div>
     </article>

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
   LayoutGrid,
   List,
   Lock,
@@ -20,7 +19,6 @@ import type {
   SettingsDto,
 } from "../shared/types";
 import * as api from "./lib/api";
-import { createDemoBootstrap, tickDemoBootstrap } from "./lib/demo-data";
 import {
   convertCurrency,
   daysUntil,
@@ -48,7 +46,6 @@ import {
 import { NodeCard } from "./components/NodeCard";
 import { NodeDetailDrawer } from "./components/NodeDetailDrawer";
 import { ProbesView } from "./components/ProbesView";
-import { TactileGlassSwitch } from "./components/TactileGlassSwitch";
 
 type TabId = "overview" | "probes" | "containers" | "billing";
 type StatusFilter = "all" | "online" | "warn" | "offline";
@@ -74,21 +71,6 @@ const TAB_TITLES: Record<TabId, string> = {
   billing: "资产与账单",
 };
 
-function resolveInitialDemoMode(): boolean {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("demo") === "1") return true;
-    if (params.get("demo") === "0") return false;
-    const saved = localStorage.getItem("pulsevps_mode");
-    if (saved === "demo") return true;
-    if (saved === "live") return false;
-  } catch {
-    // ignore
-  }
-  // Live-first default: never hide real outages behind fake green demo servers
-  return false;
-}
-
 export function App() {
   const [shaderPreset, setShaderPreset] = useState<ShaderPreset>(() => {
     try {
@@ -104,8 +86,6 @@ export function App() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [regionFilter, setRegionFilter] = useState("all");
 
-  const [demoMode, setDemoMode] = useState<boolean>(resolveInitialDemoMode);
-  const [demoData, setDemoData] = useState<BootstrapResponse>(() => createDemoBootstrap());
   const [liveData, setLiveData] = useState<BootstrapResponse | null>(null);
   const [liveError, setLiveError] = useState<string>("");
   const [refreshingLive, setRefreshingLive] = useState(false);
@@ -172,9 +152,8 @@ export function App() {
     loadLive();
   }, [loadLive]);
 
-  // Poll every 10s ONLY in Live mode while the tab is visible (preserves Cloudflare Free quota)
+  // Poll every 10s while the tab is visible (preserves Cloudflare Free quota)
   useEffect(() => {
-    if (demoMode) return;
     const onVisibility = () => {
       if (!document.hidden) loadLive();
     };
@@ -186,30 +165,9 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(id);
     };
-  }, [demoMode, loadLive]);
+  }, [loadLive]);
 
-  // Tick demo data every 3s ONLY while in Demo mode and visible
-  useEffect(() => {
-    if (!demoMode) return;
-    const id = window.setInterval(() => {
-      if (!document.hidden) {
-        setDemoData((prev) => tickDemoBootstrap(prev));
-      }
-    }, 3000);
-    return () => window.clearInterval(id);
-  }, [demoMode]);
-
-  const switchMode = useCallback((toDemo: boolean) => {
-    setDemoMode(toDemo);
-    setSelectedNodeId(null);
-    try {
-      localStorage.setItem("pulsevps_mode", toDemo ? "demo" : "live");
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Global keyboard shortcuts (1-4 switch views, / focus search, r refresh Live)
+  // Global keyboard shortcuts (1-4 switch views, / focus search, r refresh)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -234,29 +192,27 @@ export function App() {
       else if (e.key === "/" && tab === "overview") {
         e.preventDefault();
         searchInputRef.current?.focus();
-      } else if (e.key === "r" && !demoMode) {
+      } else if (e.key === "r") {
         loadLive(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [loginOpen, nodeFormOpen, probeModalOpen, settingsOpen, installModal, confirmState, selectedNodeId, tab, demoMode, loadLive]);
+  }, [loginOpen, nodeFormOpen, probeModalOpen, settingsOpen, installModal, confirmState, selectedNodeId, tab, loadLive]);
 
-  const activeData: BootstrapResponse = demoMode
-    ? demoData
-    : liveData ?? {
-        settings: {
-          siteTitle: "PulseVPS",
-          siteDomain: "vps.ydiws.xyz",
-          publicAccess: "masked",
-          displayCurrency: "CNY",
-        },
-        authenticated: false,
-        serverTime: Date.now(),
-        nodes: [],
-        probeTargets: [],
-        edgeProbeHistory: {},
-      };
+  const activeData: BootstrapResponse = liveData ?? {
+    settings: {
+      siteTitle: "PulseVPS",
+      siteDomain: "vps.ydiws.xyz",
+      publicAccess: "masked",
+      displayCurrency: "CNY",
+    },
+    authenticated: false,
+    serverTime: Date.now(),
+    nodes: [],
+    probeTargets: [],
+    edgeProbeHistory: {},
+  };
 
   const displayCurrency = currencyOverride ?? activeData.settings.displayCurrency;
   const selectedNode = activeData.nodes.find((n) => n.id === selectedNodeId) ?? null;
@@ -348,7 +304,6 @@ export function App() {
   const handleLogin = async (password: string) => {
     await api.loginAdmin(password);
     await loadLive();
-    switchMode(false);
     showToast("已登录管理员后台");
   };
 
@@ -477,23 +432,6 @@ export function App() {
     }
   };
 
-  const handleToggleDemoOffline = (nodeId: string) => {
-    setDemoData((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              online: !n.online,
-              lastSeenAt: !n.online ? Date.now() : Date.now() - 18 * 60_000,
-              netRxSpeed: !n.online ? 1_200_000 : 0,
-              netTxSpeed: !n.online ? 1_900_000 : 0,
-            }
-          : n,
-      ),
-    }));
-  };
-
   const allOnline = totalNodes > 0 && onlineNodes === totalNodes;
   const fleetDotColor = totalNodes === 0 ? "#8e8e93" : allOnline ? "#34C759" : onlineNodes === 0 ? "#FF3B30" : "#FF9500";
   const isAuthenticatedLive = Boolean(liveData?.authenticated);
@@ -521,13 +459,17 @@ export function App() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <TactileGlassSwitch
-              demoMode={demoMode}
-              liveCount={liveData?.nodes.length}
-              onChange={switchMode}
-            />
+            <button
+              type="button"
+              onClick={() => loadLive(true)}
+              disabled={refreshingLive}
+              aria-label="刷新实时数据"
+              className="liquid-btn flex h-10 w-10 items-center justify-center rounded-full text-[#4c515c] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshingLive ? "animate-spin text-[#0058c4]" : ""}`} />
+            </button>
 
-            {!demoMode && isAuthenticatedLive ? (
+            {isAuthenticatedLive ? (
               <button
                 type="button"
                 onClick={() => {
@@ -539,7 +481,7 @@ export function App() {
               >
                 <Plus className="h-4 w-4" />
               </button>
-            ) : !isAuthenticatedLive ? (
+            ) : (
               <button
                 type="button"
                 onClick={() => setLoginOpen(true)}
@@ -548,7 +490,7 @@ export function App() {
                 <Lock className="h-3.5 w-3.5" />
                 <span>登录</span>
               </button>
-            ) : null}
+            )}
 
             <button
               type="button"
@@ -588,24 +530,16 @@ export function App() {
 
           {/* Right Controls Capsule */}
           <div className="liquid-capsule flex h-11 items-center gap-1.5 rounded-full p-1.5">
-            <TactileGlassSwitch
-              demoMode={demoMode}
-              liveCount={liveData?.nodes.length}
-              onChange={switchMode}
-            />
-
-            {!demoMode && (
-              <button
-                type="button"
-                onClick={() => loadLive(true)}
-                disabled={refreshingLive}
-                aria-label="手动刷新实时数据"
-                title="手动刷新实时数据 (快捷键 R)"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#4c515c] transition hover:bg-white/70 hover:text-[#1d1d1f] disabled:opacity-50"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${refreshingLive ? "animate-spin text-[#0058c4]" : ""}`} />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => loadLive(true)}
+              disabled={refreshingLive}
+              aria-label="手动刷新实时数据"
+              title="手动刷新实时数据 (快捷键 R)"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#4c515c] transition hover:bg-white/70 hover:text-[#1d1d1f] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshingLive ? "animate-spin text-[#0058c4]" : ""}`} />
+            </button>
 
             <button
               type="button"
@@ -619,18 +553,16 @@ export function App() {
 
             {isAuthenticatedLive ? (
               <>
-                {!demoMode && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingNode(null);
-                      setNodeFormOpen(true);
-                    }}
-                    className="liquid-btn-primary inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> 添加
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingNode(null);
+                    setNodeFormOpen(true);
+                  }}
+                  className="liquid-btn-primary inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-medium"
+                >
+                  <Plus className="h-3.5 w-3.5" /> 添加
+                </button>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -666,23 +598,6 @@ export function App() {
 
       {/* Main Content */}
       <main className="relative z-10 mx-auto max-w-6xl space-y-5 px-4 pt-5 pb-28 sm:px-6 lg:space-y-6 lg:pt-24 lg:pb-14">
-        {/* Explicit Demo Mode Banner so simulated green servers are never mistaken for live status */}
-        {demoMode && (
-          <div className="liquid-glass flex flex-wrap items-center justify-between gap-2.5 rounded-[18px] border border-[#9a4500]/20 bg-[#fff7ed]/75 px-4 py-2.5 text-[12.5px] text-[#9a4500]">
-            <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>当前为演示数据模式（显示 4 台模拟主机，非线上真实状态）</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => switchMode(false)}
-              className="liquid-btn inline-flex min-h-[34px] items-center rounded-full px-3.5 text-[12px] font-semibold text-[#0058c4]"
-            >
-              切换至实时 ({liveData?.nodes.length ?? 0})
-            </button>
-          </div>
-        )}
-
         {/* Editorial Display Header */}
         <div className="flex flex-wrap items-end justify-between gap-3 px-1">
           <div>
@@ -695,7 +610,7 @@ export function App() {
               </span>
               <span aria-hidden="true" className="text-[#9ca3af]">·</span>
               <span className="apple-nums">本月累计 {formatBytes(totalMonthTraffic, 1)}</span>
-              {!demoMode && activeData.serverTime > 0 && (
+              {activeData.serverTime > 0 && (
                 <>
                   <span aria-hidden="true" className="text-[#9ca3af]">·</span>
                   <span className="apple-nums text-[#555a66]">
@@ -707,32 +622,23 @@ export function App() {
           </div>
         </div>
 
-        {!demoMode && liveError && (
+        {liveError && (
           <div
             role="alert"
             className="liquid-glass flex flex-wrap items-center justify-between gap-3 rounded-[18px] px-4 py-3 text-[13px] text-[#c41e14]"
           >
             <span>无法连接监控后端（{liveError}）</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => loadLive(true)}
-                className="liquid-btn min-h-[36px] rounded-full px-3.5 text-[12px] font-medium"
-              >
-                重试连接
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode(true)}
-                className="liquid-btn min-h-[36px] rounded-full px-3.5 text-[12px] font-medium text-[#0058c4]"
-              >
-                查看演示数据
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => loadLive(true)}
+              className="liquid-btn min-h-[36px] rounded-full px-3.5 text-[12px] font-medium"
+            >
+              重试连接
+            </button>
           </div>
         )}
 
-        {!demoMode && activeData.requiresAuth ? (
+        {activeData.requiresAuth ? (
           <div className="liquid-glass mx-auto my-12 max-w-md rounded-[28px] p-8 text-center">
             <Lock className="mx-auto h-7 w-7 text-[#0058c4]" />
             <h2 className="mt-3 text-[17px] font-semibold text-[#1d1d1f]">已开启私密访问</h2>
@@ -911,35 +817,24 @@ export function App() {
                 {filteredNodes.length === 0 ? (
                   <div className="liquid-glass rounded-[26px] p-10 text-center">
                     <h2 className="text-[16px] font-semibold text-[#1d1d1f]">
-                      {!demoMode && activeData.nodes.length === 0
-                        ? "实时数据库暂无主机"
-                        : "没有匹配的主机"}
+                      {activeData.nodes.length === 0 ? "暂无已接入主机" : "没有匹配的主机"}
                     </h2>
                     <p className="mt-1.5 text-[13px] text-[#4c515c]">
-                      {!demoMode && activeData.nodes.length === 0
-                        ? "登录后添加第一台 VPS 并部署 Go Agent，或先切换到演示模式浏览效果。"
+                      {activeData.nodes.length === 0
+                        ? "登录后添加第一台 VPS 并部署 Go Agent，即可开始实时监控。"
                         : "当前搜索词或状态筛选下没有结果。"}
                     </p>
                     <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-                      {!demoMode && activeData.nodes.length === 0 ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              activeData.authenticated ? (setEditingNode(null), setNodeFormOpen(true)) : setLoginOpen(true)
-                            }
-                            className="liquid-btn-primary min-h-[42px] rounded-full px-5 text-[13px] font-medium"
-                          >
-                            {activeData.authenticated ? "添加真实主机" : "登录并添加主机"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => switchMode(true)}
-                            className="liquid-btn min-h-[42px] rounded-full px-5 text-[13px] font-medium"
-                          >
-                            查看演示数据
-                          </button>
-                        </>
+                      {activeData.nodes.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            activeData.authenticated ? (setEditingNode(null), setNodeFormOpen(true)) : setLoginOpen(true)
+                          }
+                          className="liquid-btn-primary min-h-[42px] rounded-full px-5 text-[13px] font-medium"
+                        >
+                          {activeData.authenticated ? "添加主机" : "登录并添加主机"}
+                        </button>
                       ) : hasOverviewFilters ? (
                         <button
                           type="button"
@@ -957,7 +852,6 @@ export function App() {
                       <NodeCard
                         key={node.id}
                         node={node}
-                        demoMode={demoMode}
                         onSelect={(n) => setSelectedNodeId(n.id)}
                       />
                     ))}
@@ -1050,7 +944,6 @@ export function App() {
                 probeTargets={activeData.probeTargets}
                 edgeHistory={activeData.edgeProbeHistory}
                 authenticated={activeData.authenticated}
-                demoMode={demoMode}
                 runningProbes={runningProbes}
                 onRunNow={handleRunProbes}
                 onAddProbe={() => setProbeModalOpen(true)}
@@ -1071,7 +964,6 @@ export function App() {
                 nodes={activeData.nodes}
                 displayCurrency={displayCurrency}
                 authenticated={activeData.authenticated}
-                demoMode={demoMode}
                 onChangeCurrency={(c) => setCurrencyOverride(c)}
                 onEditNode={(n) => {
                   setEditingNode(n);
@@ -1087,7 +979,6 @@ export function App() {
       {/* Accessible Inspector Glass Sheet */}
       <NodeDetailDrawer
         node={selectedNode}
-        demoMode={demoMode}
         authenticated={activeData.authenticated}
         onClose={() => setSelectedNodeId(null)}
         onEdit={(n) => {
@@ -1096,7 +987,6 @@ export function App() {
         }}
         onInstallCmd={(n) => setInstallModal({ node: n, rawToken: null })}
         onDelete={requestDeleteNode}
-        onToggleDemoOffline={handleToggleDemoOffline}
       />
 
       {/* Accessible Frosted Dialogs */}
@@ -1127,7 +1017,7 @@ export function App() {
         settings={activeData.settings}
         liveNodeCount={liveData?.nodes.length ?? 0}
         shaderPreset={shaderPreset}
-        canEditServerSettings={!demoMode && isAuthenticatedLive}
+        canEditServerSettings={isAuthenticatedLive}
         onChangeShader={setShaderPreset}
         onClose={() => setSettingsOpen(false)}
         onSave={handleSaveSettings}
