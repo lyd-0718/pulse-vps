@@ -3,6 +3,7 @@ import { ArrowUpDown, Search } from "lucide-react";
 import type { NodeDto } from "../../shared/types";
 import { formatBytes } from "../lib/format";
 import { GlassSelect } from "./GlassSelect";
+import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
 
 interface ContainersViewProps {
   nodes: NodeDto[];
@@ -138,27 +139,16 @@ export function ContainersView({ nodes, onSelectNode }: ContainersViewProps) {
             />
           </div>
 
-          <div className="liquid-segment-track inline-flex items-center rounded-full p-0.5">
-            {(
-              [
-                ["all", `全部 ${rows.length}`],
-                ["running", `运行中 ${runningCount}`],
-                ["exited", `已停止 ${stoppedCount}`],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                aria-pressed={stateFilter === k}
-                onClick={() => setStateFilter(k)}
-                className={`apple-nums min-h-[36px] rounded-full px-3.5 text-[12px] font-medium transition sm:min-h-[30px] ${
-                  stateFilter === k ? "liquid-segment-thumb font-semibold text-[#1d1d1f]" : "text-[#4c515c] hover:text-[#1d1d1f]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <LeafSegmentedControl
+            ariaLabel="按容器状态筛选"
+            value={stateFilter}
+            onChange={setStateFilter}
+            options={[
+              { id: "all", label: `全部 ${rows.length}` },
+              { id: "running", label: `运行中 ${runningCount}` },
+              { id: "exited", label: `已停止 ${stoppedCount}` },
+            ]}
+          />
         </div>
 
         <div className="overflow-x-auto border-t border-[#1d1d1f]/[0.08]">

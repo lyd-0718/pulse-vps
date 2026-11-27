@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from "react";
-import { AlertCircle, Pencil, RefreshCw, Terminal, Trash2, X } from "lucide-react";
+import { AlertCircle, Pencil, Terminal, Trash2, X } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -25,6 +25,9 @@ import {
 import { CARRIER_FILTERS, carrierBadgeClasses, classifyProbe, type ProbeCarrier } from "../lib/probes";
 import { AccessibleModal } from "./AccessibleModal";
 import { RingGauge } from "./RingGauge";
+import { CopyMorphButton } from "./ui-moments/CopyMorphButton";
+import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
+import { SignalReturnLoader } from "./ui-moments/SignalReturnLoader";
 
 interface NodeDetailDrawerProps {
   node: NodeDto | null;
@@ -126,10 +129,25 @@ export function NodeDetailDrawer({
                   : `已离线 · ${formatRelativeTime(node.lastSeenAt)}失联`}
               </span>
             </div>
-            <p className="mt-1 text-[12px] text-[#4c515c]">
-              {node.provider || node.region} · <span className="font-mono-num">{node.ip || "未上报 IP"}</span> · {node.os || "Linux"} ({node.arch || "amd64"})
-              {node.online && ` · 更新于 ${formatRelativeTime(node.lastSeenAt)}`}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-[#4c515c]">
+              <span>{node.provider || node.region}</span>
+              <span aria-hidden="true">·</span>
+              <span className="font-mono-num">{node.ip || "未上报 IP"}</span>
+              {node.ip && !node.ip.includes("*") && (
+                <CopyMorphButton
+                  text={node.ip}
+                  variant="inline"
+                  label="复制 IP"
+                  copiedLabel="已复制"
+                  className="!min-h-[24px] !px-2 text-[11px]"
+                />
+              )}
+              <span aria-hidden="true">·</span>
+              <span>
+                {node.os || "Linux"} ({node.arch || "amd64"})
+              </span>
+              {node.online && <span>· 更新于 {formatRelativeTime(node.lastSeenAt)}</span>}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -210,27 +228,23 @@ export function NodeDetailDrawer({
         <div className="mt-6">
           <div className="flex items-center justify-between">
             <h3 className="text-[14px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">性能趋势</h3>
-            <div className="liquid-segment-track inline-flex items-center rounded-full p-0.5">
-              {(["1h", "6h", "24h", "7d"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  aria-pressed={range === r}
-                  onClick={() => setRange(r)}
-                  className={`min-h-[32px] rounded-full px-3 font-mono-num text-[12px] font-medium transition sm:min-h-[28px] ${
-                    range === r ? "liquid-segment-thumb font-semibold text-[#1d1d1f]" : "text-[#4c515c] hover:text-[#1d1d1f]"
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
+            <LeafSegmentedControl
+              size="sm"
+              ariaLabel="选择历史时间范围"
+              value={range}
+              onChange={setRange}
+              options={[
+                { id: "1h", label: "1h" },
+                { id: "6h", label: "6h" },
+                { id: "24h", label: "24h" },
+                { id: "7d", label: "7d" },
+              ]}
+            />
           </div>
 
           {loadingHistory ? (
-            <div className="liquid-inset mt-3 flex h-48 items-center justify-center gap-2 rounded-[20px] text-[12.5px] text-[#4c515c]">
-              <RefreshCw className="h-4 w-4 animate-spin text-[#0058c4]" />
-              正在加载历史采样...
+            <div className="liquid-inset mt-3 flex h-48 items-center justify-center rounded-[20px]">
+              <SignalReturnLoader size={40} label="正在加载历史采样..." />
             </div>
           ) : historyError ? (
             <div className="liquid-inset mt-3 flex h-44 flex-col items-center justify-center gap-2.5 rounded-[20px] px-4 text-center">
@@ -383,30 +397,13 @@ export function NodeDetailDrawer({
                     </span>
                   )}
                 </div>
-                <div
-                  role="group"
-                  aria-label="筛选节点线路运营商"
-                  className="liquid-segment-track inline-flex items-center rounded-full p-0.5"
-                >
-                  {CARRIER_FILTERS.map((opt) => {
-                    const active = probeCarrier === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setProbeCarrier(opt.id)}
-                        className={`min-h-[28px] rounded-full px-2.5 text-[11.5px] font-medium transition ${
-                          active
-                            ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
-                            : "text-[#4c515c] hover:text-[#1d1d1f]"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <LeafSegmentedControl
+                  size="sm"
+                  ariaLabel="筛选节点线路运营商"
+                  value={probeCarrier}
+                  onChange={setProbeCarrier}
+                  options={CARRIER_FILTERS}
+                />
               </div>
               <div className="liquid-inset grid grid-cols-1 gap-x-5 divide-y divide-[#1d1d1f]/[0.07] rounded-[18px] px-4 sm:grid-cols-2 sm:divide-y-0">
                 {visibleProbes.length === 0 ? (

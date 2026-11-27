@@ -12,6 +12,7 @@ import {
 import { PrecisionTunerBar } from "./PrecisionTunerBar";
 import { RingGauge } from "./RingGauge";
 import { Sparkline } from "./Sparkline";
+import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
 
 interface NodeCardProps {
   node: NodeDto;
@@ -102,30 +103,17 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
       {/* Borderless Subtle Surface Band (avoids card-inside-card chrome) for Quick Mode Switching */}
       <div className="liquid-band -mx-5 px-5 py-3.5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div role="tablist" aria-label={`${node.name} 视图切换`} className="liquid-segment-track inline-flex items-center rounded-full p-[2px]">
-            {(
-              [
-                ["metrics", "实时指标"],
-                ["containers", `容器 ${runningContainers}/${node.containers.length}`],
-                ["probes", avgLatency !== null ? `线路 ${avgLatency} ms` : "线路"],
-              ] as const
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                role="tab"
-                aria-selected={panelMode === mode}
-                onClick={() => setPanelMode(mode)}
-                className={`min-h-[34px] rounded-full px-3 text-[12px] font-medium transition-colors duration-100 sm:min-h-[28px] sm:px-2.5 sm:text-[11.5px] ${
-                  panelMode === mode
-                    ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
-                    : "text-[#4c515c] hover:text-[#1d1d1f]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <LeafSegmentedControl
+            size="sm"
+            ariaLabel={`${node.name} 视图切换`}
+            value={panelMode}
+            onChange={setPanelMode}
+            options={[
+              { id: "metrics", label: "实时指标" },
+              { id: "containers", label: `容器 ${runningContainers}/${node.containers.length}` },
+              { id: "probes", label: avgLatency !== null ? `线路 ${avgLatency} ms` : "线路" },
+            ]}
+          />
 
           <button
             type="button"
@@ -155,7 +143,11 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
             <RingGauge
               value={diskPct}
               label="磁盘"
-              detail={node.online && node.diskTotal > 0 ? `${formatBytes(node.diskUsed, 0)} / ${formatBytes(node.diskTotal, 0)}` : "—"}
+              detail={
+                node.online && node.diskTotal > 0
+                  ? `${Math.round(node.diskUsed / 1024 ** 3)}/${Math.round(node.diskTotal / 1024 ** 3)} GB`
+                  : "—"
+              }
               offline={!node.online || node.diskTotal === 0}
               accent="teal"
             />

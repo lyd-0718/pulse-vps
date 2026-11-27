@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { HoldToConfirmButton } from "./ui-moments/HoldToConfirmButton";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -189,7 +190,7 @@ export function ConfirmDialog({
           </div>
         )}
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex items-start justify-end gap-2">
           <button
             type="button"
             disabled={busy}
@@ -198,16 +199,22 @@ export function ConfirmDialog({
           >
             取消
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={handleConfirm}
-            className={`${
-              isDanger ? "liquid-btn-danger" : "liquid-btn-primary"
-            } min-h-[40px] rounded-full px-5 text-[13px] font-medium disabled:opacity-60`}
-          >
-            {busy ? "处理中..." : state.confirmLabel}
-          </button>
+          {isDanger ? (
+            <HoldToConfirmButton
+              label={state.confirmLabel}
+              busy={busy}
+              onConfirm={handleConfirm}
+            />
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleConfirm}
+              className="liquid-btn-primary min-h-[40px] rounded-full px-5 text-[13px] font-medium disabled:opacity-60"
+            >
+              {busy ? "处理中..." : state.confirmLabel}
+            </button>
+          )}
         </div>
       </div>
     </AccessibleModal>

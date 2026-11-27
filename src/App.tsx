@@ -3,11 +3,10 @@ import {
   LayoutGrid,
   List,
   Lock,
-  LogOut,
+  Menu,
   Plus,
   RefreshCw,
   Search,
-  Settings,
 } from "lucide-react";
 import type {
   BootstrapResponse,
@@ -35,7 +34,6 @@ import { AmbientShader, type ShaderPreset } from "./components/AmbientShader";
 import { BillingView } from "./components/BillingView";
 import { ContainersView } from "./components/ContainersView";
 import { GlassSelect } from "./components/GlassSelect";
-import { GlassTabs } from "./components/GlassTabs";
 import {
   InstallCommandModal,
   LoginModal,
@@ -46,8 +44,10 @@ import {
 import { NodeCard } from "./components/NodeCard";
 import { NodeDetailDrawer } from "./components/NodeDetailDrawer";
 import { ProbesView } from "./components/ProbesView";
+import { Sidebar, type TabId } from "./components/Sidebar";
+import { LeafSegmentedControl } from "./components/ui-moments/LeafSegmentedControl";
+import { RollingNumber } from "./components/ui-moments/RollingNumber";
 
-type TabId = "overview" | "probes" | "containers" | "billing";
 type StatusFilter = "all" | "online" | "warn" | "offline";
 
 const VALID_SHADERS: ShaderPreset[] = ["silk-mesh", "soft-dunes", "lagoon-mist"];
@@ -57,19 +57,19 @@ const CURRENCY_CYCLE: Record<CurrencyCode, CurrencyCode> = {
   EUR: "CNY",
 };
 
-const NAV_ITEMS: ReadonlyArray<{ id: TabId; label: string }> = [
-  { id: "overview", label: "总览" },
-  { id: "probes", label: "网络" },
-  { id: "containers", label: "容器" },
-  { id: "billing", label: "账单" },
-];
-
 const TAB_TITLES: Record<TabId, string> = {
-  overview: "我的主机",
+  overview: "主机总览",
   probes: "网络与拨测",
   containers: "容器进程",
   billing: "资产与账单",
 };
+
+const STATUS_OPTIONS: ReadonlyArray<{ id: StatusFilter; label: string }> = [
+  { id: "all", label: "全部" },
+  { id: "online", label: "在线" },
+  { id: "warn", label: "预警" },
+  { id: "offline", label: "离线" },
+];
 
 export function App() {
   const [shaderPreset, setShaderPreset] = useState<ShaderPreset>(() => {
@@ -81,6 +81,14 @@ export function App() {
     }
   });
   const [tab, setTab] = useState<TabId>("overview");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("pulsevps_sidebar_collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -133,6 +141,18 @@ export function App() {
       // ignore
     }
   }, [shaderPreset]);
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("pulsevps_sidebar_collapsed", next ? "1" : "0");
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
   const loadLive = useCallback(async (manual = false) => {
     if (manual) setRefreshingLive(true);
@@ -437,36 +457,80 @@ export function App() {
   const isAuthenticatedLive = Boolean(liveData?.authenticated);
 
   return (
-    <div className="relative min-h-screen text-[#1d1d1f]">
+    <div className="relative flex min-h-screen w-full text-[#1d1d1f]">
       {/* Serene Stripe-Free WebGL Fluid Shader Backdrop */}
       <AmbientShader preset={shaderPreset} />
 
-      {/* Mobile & Tablet (< lg): Clean Single-Row Sticky Frosted Top Bar (zero title collision, zero scroll bleed) */}
-      <header className="liquid-mobile-bar sticky top-0 z-30 lg:hidden">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{
-                backgroundColor: fleetDotColor,
-                boxShadow: `0 0 0 3px ${fleetDotColor}24`,
-              }}
-            />
-            <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
-              {activeData.settings.siteTitle}
-            </span>
+      {/* Left Persistent Admin Console Sidebar (desktop collapsible, mobile slide-over drawer) */}
+      <Sidebar
+        siteTitle={activeData.settings.siteTitle}
+        siteDomain={activeData.settings.siteDomain}
+        tab={tab}
+        onChangeTab={setTab}
+        nodes={activeData.nodes}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={(id) => setSelectedNodeId(id)}
+        probeCount={activeData.probeTargets.length}
+        fleetDotColor={fleetDotColor}
+        authenticated={isAuthenticatedLive}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapsed}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenLogin={() => setLoginOpen(true)}
+        onLogout={handleLogout}
+        onAddNode={() => {
+          setEditingNode(null);
+          setNodeFormOpen(true);
+        }}
+      />
+
+      {/* Right Full-Width Workspace */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        {/* Sticky Full-Width Console Topbar (h-14 aligns flush with sidebar brand header) */}
+        <header className="liquid-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 px-4 sm:px-6 lg:px-7">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="打开导航菜单"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#4c515c] transition hover:bg-white/75 hover:text-[#1d1d1f] lg:hidden"
+            >
+              <Menu className="h-4.5 w-4.5" />
+            </button>
+            <h1 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-[#1d1d1f] sm:text-[18px]">
+              {TAB_TITLES[tab]}
+            </h1>
+            <div className="hidden items-center gap-2 text-[12px] text-[#4c515c] md:flex">
+              <span className="h-3.5 w-[0.5px] bg-[#1d1d1f]/15" aria-hidden="true" />
+              <span className="apple-nums">
+                {onlineNodes} / {totalNodes} 在线
+              </span>
+              <span aria-hidden="true" className="text-[#9ca3af]">·</span>
+              <span className="apple-nums">本月 {formatBytes(totalMonthTraffic, 1)}</span>
+              {activeData.serverTime > 0 && (
+                <>
+                  <span aria-hidden="true" className="text-[#9ca3af]">·</span>
+                  <span className="apple-nums text-[#555a66]">
+                    同步于 {formatRelativeTime(activeData.serverTime)}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => loadLive(true)}
               disabled={refreshingLive}
-              aria-label="刷新实时数据"
-              className="liquid-btn flex h-10 w-10 items-center justify-center rounded-full text-[#4c515c] disabled:opacity-50"
+              aria-label="手动刷新实时数据"
+              title="手动刷新实时数据 (快捷键 R)"
+              className="liquid-btn inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12px] font-medium text-[#4c515c] disabled:opacity-50 sm:h-8"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshingLive ? "animate-spin text-[#0058c4]" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshingLive ? "animate-spin text-[#0058c4]" : ""}`} />
+              <span className="hidden sm:inline">刷新</span>
             </button>
 
             {isAuthenticatedLive ? (
@@ -476,152 +540,26 @@ export function App() {
                   setEditingNode(null);
                   setNodeFormOpen(true);
                 }}
-                aria-label="添加新主机"
-                className="liquid-btn-primary flex h-10 w-10 items-center justify-center rounded-full"
+                className="liquid-btn-primary inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-medium sm:h-8"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
+                <span>添加主机</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setLoginOpen(true)}
-                className="liquid-btn inline-flex h-10 items-center gap-1 rounded-full px-3 text-[12.5px] font-medium text-[#0058c4]"
+                className="liquid-btn inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-semibold text-[#0058c4] sm:h-8"
               >
                 <Lock className="h-3.5 w-3.5" />
                 <span>登录</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="偏好设置与外观"
-              className="liquid-btn flex h-10 w-10 items-center justify-center rounded-full text-[#4c515c]"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Desktop (lg+): VisionOS Floating 3-Capsule Header (Shader switcher moved into Settings) */}
-      <header className="pointer-events-none fixed top-0 right-0 left-0 z-30 hidden lg:block">
-        <div className="pointer-events-auto mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 pt-4 pb-2">
-          {/* Brand Capsule */}
-          <div className="liquid-capsule inline-flex h-11 items-center gap-2.5 rounded-full px-4">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                backgroundColor: fleetDotColor,
-                boxShadow: `0 0 0 3px ${fleetDotColor}24`,
-              }}
-            />
-            <span className="text-[14px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
-              {activeData.settings.siteTitle}
-            </span>
-            <span className="text-[12px] text-[#4c515c]">
-              {activeData.settings.siteDomain}
-            </span>
-          </div>
-
-          {/* Center Draggable Thick Liquid Glass Lens Tabs */}
-          <GlassTabs items={NAV_ITEMS} value={tab} onChange={setTab} />
-
-          {/* Right Controls Capsule */}
-          <div className="liquid-capsule flex h-11 items-center gap-1.5 rounded-full p-1.5">
-            <button
-              type="button"
-              onClick={() => loadLive(true)}
-              disabled={refreshingLive}
-              aria-label="手动刷新实时数据"
-              title="手动刷新实时数据 (快捷键 R)"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#4c515c] transition hover:bg-white/70 hover:text-[#1d1d1f] disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshingLive ? "animate-spin text-[#0058c4]" : ""}`} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="偏好设置与外观"
-              title="偏好设置与背景光场"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#4c515c] transition hover:bg-white/70 hover:text-[#1d1d1f]"
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </button>
-
-            {isAuthenticatedLive ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingNode(null);
-                    setNodeFormOpen(true);
-                  }}
-                  className="liquid-btn-primary inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-medium"
-                >
-                  <Plus className="h-3.5 w-3.5" /> 添加
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  aria-label="退出管理员登录"
-                  title="退出登录"
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#4c515c] transition hover:bg-white/70 hover:text-[#1d1d1f]"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setLoginOpen(true)}
-                className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-medium text-[#0058c4] transition hover:bg-white/70"
-              >
-                <Lock className="h-3.5 w-3.5" /> 登录
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile & Tablet (< lg): Floating Thumb-Zone Liquid Glass Bottom Navigation */}
-      <nav
-        aria-label="底部主导航"
-        className="mobile-bottom-dock pointer-events-none fixed right-0 bottom-0 left-0 z-30 px-4 lg:hidden"
-      >
-        <div className="pointer-events-auto mx-auto max-w-md">
-          <GlassTabs items={NAV_ITEMS} value={tab} onChange={setTab} ariaLabel="底部主导航" />
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <main className="relative z-10 mx-auto max-w-6xl space-y-5 px-4 pt-5 pb-28 sm:px-6 lg:space-y-6 lg:pt-24 lg:pb-14">
-        {/* Editorial Display Header */}
-        <div className="flex flex-wrap items-end justify-between gap-3 px-1">
-          <div>
-            <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-[#1d1d1f] sm:text-[34px]">
-              {TAB_TITLES[tab]}
-            </h1>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] text-[#4c515c]">
-              <span className="apple-nums">
-                {onlineNodes} / {totalNodes} 台主机在线
-              </span>
-              <span aria-hidden="true" className="text-[#9ca3af]">·</span>
-              <span className="apple-nums">本月累计 {formatBytes(totalMonthTraffic, 1)}</span>
-              {activeData.serverTime > 0 && (
-                <>
-                  <span aria-hidden="true" className="text-[#9ca3af]">·</span>
-                  <span className="apple-nums text-[#555a66]">
-                    同步于 {formatRelativeTime(activeData.serverTime)}
-                  </span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
+        {/* Full-Width Workspace Content Canvas */}
+        <main className="flex-1 space-y-5 px-4 py-5 sm:px-6 lg:space-y-6 lg:px-7 lg:py-6">
         {liveError && (
           <div
             role="alert"
@@ -655,14 +593,15 @@ export function App() {
           <>
             {tab === "overview" && (
               <>
-                {/* Unified Glass Telemetry Ribbon (no fabricated dot matrices, no mid-word mobile breaks) */}
-                <section className="liquid-glass grid grid-cols-2 divide-y divide-[#1d1d1f]/[0.07] rounded-[24px] lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+                {/* Full-Width Telemetry Ribbon with ui-moments RollingNumber */}
+                <section className="liquid-glass grid grid-cols-2 divide-y divide-[#1d1d1f]/[0.07] rounded-[24px] xl:grid-cols-4 xl:divide-x xl:divide-y-0">
                   <div className="px-4 py-4 sm:px-5">
                     <div className="whitespace-nowrap text-[12px] font-medium text-[#4c515c]">节点状态</div>
                     <div className="apple-nums mt-1.5 flex items-baseline gap-1.5 whitespace-nowrap">
-                      <span className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]">
-                        {onlineNodes}
-                      </span>
+                      <RollingNumber
+                        value={String(onlineNodes)}
+                        className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]"
+                      />
                       <span className="text-[13.5px] text-[#555a66]">/ {totalNodes} 在线</span>
                     </div>
                     <div className={`mt-0.5 text-[12px] ${!allOnline && totalNodes > 0 ? "font-medium text-[#c41e14]" : "text-[#555a66]"}`}>
@@ -670,7 +609,7 @@ export function App() {
                     </div>
                   </div>
 
-                  <div className="border-l border-[#1d1d1f]/[0.07] px-4 py-4 sm:px-5 lg:border-l-0">
+                  <div className="border-l border-[#1d1d1f]/[0.07] px-4 py-4 sm:px-5 xl:border-l-0">
                     <div className="whitespace-nowrap text-[12px] font-medium text-[#4c515c]">实时聚合带宽</div>
                     <div className="font-mono-num mt-2 text-[14px] font-semibold text-[#1d1d1f]">
                       ↓ {formatSpeed(totalRxSpeed)}
@@ -694,11 +633,14 @@ export function App() {
                       />
                     </div>
                     <div className="apple-nums mt-1.5 flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]">
-                        {edgeOkPct}%
-                      </span>
+                      <RollingNumber
+                        value={`${edgeOkPct}%`}
+                        className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]"
+                      />
                       {avgNodeLatency !== null && (
-                        <span className="text-[12px] text-[#4c515c]">均延 {avgNodeLatency} ms</span>
+                        <span className="text-[12px] text-[#4c515c]">
+                          均延 <RollingNumber value={`${avgNodeLatency}`} /> ms
+                        </span>
                       )}
                     </div>
                     <div className="mt-0.5 text-[12px] text-[#555a66]">
@@ -706,7 +648,7 @@ export function App() {
                     </div>
                   </div>
 
-                  <div className="border-l border-[#1d1d1f]/[0.07] px-4 py-4 sm:px-5 lg:border-l-0">
+                  <div className="border-l border-[#1d1d1f]/[0.07] px-4 py-4 sm:px-5 xl:border-l-0">
                     <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-[#4c515c]">
                       <span className="whitespace-nowrap">月度账单</span>
                       <button
@@ -720,9 +662,10 @@ export function App() {
                       </button>
                     </div>
                     <div className="apple-nums mt-1.5 flex items-baseline gap-1">
-                      <span className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]">
-                        {formatCurrency(monthlyCost, displayCurrency)}
-                      </span>
+                      <RollingNumber
+                        value={formatCurrency(monthlyCost, displayCurrency)}
+                        className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]"
+                      />
                     </div>
                     <div className="mt-0.5 truncate text-[12px] text-[#555a66]">
                       {soonestExpiry
@@ -732,10 +675,10 @@ export function App() {
                   </div>
                 </section>
 
-                {/* Quiet Toolbar with accessible mobile touch targets */}
+                {/* Quiet Toolbar with LeafSegmentedControl */}
                 <div className="flex flex-wrap items-center justify-between gap-2.5">
                   <div className="flex flex-1 flex-wrap items-center gap-2">
-                    <div className="relative flex-1 sm:flex-initial">
+                    <div className="relative w-full sm:w-auto">
                       <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-[#555a66]" />
                       <input
                         ref={searchInputRef}
@@ -744,34 +687,16 @@ export function App() {
                         onChange={(e) => setSearch(e.target.value)}
                         aria-label="搜索主机、地区或 IP"
                         placeholder="搜索主机、地区或 IP"
-                        className="liquid-input min-h-[42px] w-full rounded-full py-1.5 pr-4 pl-9 text-[15px] sm:min-h-[36px] sm:w-56 sm:text-[13px]"
+                        className="liquid-input min-h-[40px] w-full rounded-full py-1.5 pr-4 pl-9 text-[15px] sm:min-h-[34px] sm:w-64 sm:text-[13px]"
                       />
                     </div>
 
-                    <div role="group" aria-label="状态筛选" className="liquid-segment-track inline-flex items-center rounded-full p-0.5">
-                      {(
-                        [
-                          ["all", "全部"],
-                          ["online", "在线"],
-                          ["warn", "预警"],
-                          ["offline", "离线"],
-                        ] as const
-                      ).map(([k, label]) => (
-                        <button
-                          key={k}
-                          type="button"
-                          aria-pressed={statusFilter === k}
-                          onClick={() => setStatusFilter(k)}
-                          className={`min-h-[38px] rounded-full px-3.5 text-[12.5px] font-medium transition sm:min-h-[32px] sm:text-[12px] ${
-                            statusFilter === k
-                              ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
-                              : "text-[#4c515c] hover:text-[#1d1d1f]"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                    <LeafSegmentedControl
+                      options={STATUS_OPTIONS}
+                      value={statusFilter}
+                      onChange={setStatusFilter}
+                      ariaLabel="状态筛选"
+                    />
 
                     {regions.length > 1 && (
                       <GlassSelect
@@ -847,7 +772,7 @@ export function App() {
                     </div>
                   </div>
                 ) : viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
                     {filteredNodes.map((node) => (
                       <NodeCard
                         key={node.id}
@@ -974,7 +899,8 @@ export function App() {
             )}
           </>
         )}
-      </main>
+        </main>
+      </div>
 
       {/* Accessible Inspector Glass Sheet */}
       <NodeDetailDrawer

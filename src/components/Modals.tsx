@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { Check, Copy, RefreshCw, X } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { RefreshCw, X } from "lucide-react";
 import type {
   BillingCycle,
   CurrencyCode,
@@ -13,6 +13,11 @@ import type {
 } from "../../shared/types";
 import type { ShaderPreset } from "./AmbientShader";
 import { AccessibleModal } from "./AccessibleModal";
+import { ChipInput } from "./ui-moments/ChipInput";
+import { CopyMorphButton } from "./ui-moments/CopyMorphButton";
+import { InkSwitch } from "./ui-moments/InkSwitch";
+import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
+import { PlanPicker } from "./ui-moments/PlanPicker";
 
 const SHADER_OPTIONS: ReadonlyArray<{ id: ShaderPreset; label: string; desc: string; swatch: string }> = [
   { id: "silk-mesh", label: "Silk Mesh", desc: "珠光天蓝丝绸", swatch: "linear-gradient(135deg,#c7d2fe,#fde6d2)" },
@@ -31,14 +36,32 @@ export function LoginModal({
   onLogin: (password: string) => Promise<void>;
 }) {
   const titleId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const shakeInput = () => {
+    const el = inputRef.current;
+    if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.animate(
+      [
+        { transform: "translateX(0)" },
+        { transform: "translateX(-7px)" },
+        { transform: "translateX(7px)" },
+        { transform: "translateX(-4px)" },
+        { transform: "translateX(4px)" },
+        { transform: "translateX(0)" },
+      ],
+      { duration: 320, easing: "ease-out" },
+    );
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password.trim()) {
       setError("请输入管理员密码");
+      shakeInput();
       return;
     }
     setError("");
@@ -49,6 +72,7 @@ export function LoginModal({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败，请检查密码");
+      shakeInput();
     } finally {
       setBusy(false);
     }
@@ -79,6 +103,7 @@ export function LoginModal({
           )}
         </p>
         <input
+          ref={inputRef}
           type="password"
           autoFocus
           value={password}
@@ -129,7 +154,6 @@ export function InstallCommandModal({
   const [arch, setArch] = useState<"amd64" | "arm64">(
     node?.arch?.includes("arm") || node?.arch?.includes("aarch64") ? "arm64" : "amd64",
   );
-  const [copiedKey, setCopiedKey] = useState<"systemd" | "binary" | null>(null);
 
   if (!node) return null;
 
@@ -138,16 +162,6 @@ export function InstallCommandModal({
   const tokenDisplay = rawToken || "<NODE_TOKEN>";
   const cmdSystemd = `curl -fsSL ${origin}/install.sh | sudo bash -s -- --server ${origin} --token ${tokenDisplay}`;
   const cmdBinary = `./vps-agent-linux-${arch} --server ${origin} --token ${tokenDisplay}`;
-
-  const copyText = async (txt: string, key: "systemd" | "binary") => {
-    try {
-      await navigator.clipboard.writeText(txt);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 1800);
-    } catch {
-      // ignore clipboard errors
-    }
-  };
 
   return (
     <AccessibleModal open={!!node} onClose={onClose} titleId={titleId}>
@@ -189,14 +203,12 @@ export function InstallCommandModal({
           <div>
             <div className="mb-1.5 flex items-center justify-between text-[12.5px] text-[#4c515c]">
               <span>Linux 一键安装为 systemd 服务</span>
-              <button
-                type="button"
-                onClick={() => copyText(cmdSystemd, "systemd")}
-                className="inline-flex min-h-[32px] items-center gap-1 rounded-full px-2 font-medium text-[#0058c4] hover:underline"
-              >
-                {copiedKey === "systemd" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copiedKey === "systemd" ? "已复制" : hasRealToken ? "复制命令" : "复制模板"}
-              </button>
+              <CopyMorphButton
+                text={cmdSystemd}
+                variant="inline"
+                label={hasRealToken ? "复制命令" : "复制模板"}
+                copiedLabel="已复制"
+              />
             </div>
             <pre className="liquid-inset overflow-x-auto rounded-[16px] p-3.5 font-mono-num text-[12px] text-[#1d1d1f]">
               {cmdSystemd}
@@ -207,30 +219,23 @@ export function InstallCommandModal({
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-[#4c515c]">
               <div className="flex items-center gap-2">
                 <span>直接运行静态二进制</span>
-                <div className="liquid-segment-track inline-flex rounded-full p-[2px]">
-                  {(["amd64", "arm64"] as const).map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      aria-pressed={arch === a}
-                      onClick={() => setArch(a)}
-                      className={`rounded-full px-2.5 py-0.5 font-mono-num text-[11.5px] font-medium ${
-                        arch === a ? "liquid-segment-thumb font-semibold text-[#1d1d1f]" : "text-[#4c515c]"
-                      }`}
-                    >
-                      {a}
-                    </button>
-                  ))}
-                </div>
+                <LeafSegmentedControl
+                  size="sm"
+                  ariaLabel="选择 CPU 架构"
+                  value={arch}
+                  onChange={setArch}
+                  options={[
+                    { id: "amd64", label: "amd64" },
+                    { id: "arm64", label: "arm64" },
+                  ]}
+                />
               </div>
-              <button
-                type="button"
-                onClick={() => copyText(cmdBinary, "binary")}
-                className="inline-flex min-h-[32px] items-center gap-1 rounded-full px-2 font-medium text-[#0058c4] hover:underline"
-              >
-                {copiedKey === "binary" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copiedKey === "binary" ? "已复制" : hasRealToken ? "复制命令" : "复制模板"}
-              </button>
+              <CopyMorphButton
+                text={cmdBinary}
+                variant="inline"
+                label={hasRealToken ? "复制命令" : "复制模板"}
+                copiedLabel="已复制"
+              />
             </div>
             <pre className="liquid-inset overflow-x-auto rounded-[16px] p-3.5 font-mono-num text-[12px] text-[#1d1d1f]">
               {cmdBinary}
@@ -261,7 +266,7 @@ export function NodeFormModal({
   const [flag, setFlag] = useState(editing?.flag ?? "🇭🇰");
   const [region, setRegion] = useState(editing?.region ?? "香港");
   const [provider, setProvider] = useState(editing?.provider ?? "");
-  const [tagsRaw, setTagsRaw] = useState((editing?.tags ?? []).join(", "));
+  const [tags, setTags] = useState<string[]>(editing?.tags ?? []);
   const [trafficLimitGb, setTrafficLimitGb] = useState(String(editing?.trafficLimitGb ?? 1000));
   const [trafficMode, setTrafficMode] = useState<TrafficMode>(editing?.trafficMode ?? "both");
   const [trafficUnitBase, setTrafficUnitBase] = useState<TrafficUnitBase>(initBase);
@@ -325,10 +330,7 @@ export function NodeFormModal({
           flag,
           region: region.trim(),
           provider: provider.trim(),
-          tags: tagsRaw
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+          tags,
           trafficLimitGb: limitNum,
           trafficMode,
           trafficUnitBase,
@@ -399,10 +401,14 @@ export function NodeFormModal({
                 <span className="text-[#4c515c]">服务商</span>
                 <input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="DMIT / Claw / 搬瓦工" className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]" />
               </label>
-              <label className="block">
-                <span className="text-[#4c515c]">标签 (逗号分隔)</span>
-                <input value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} placeholder="CN2 GIA, 流媒体" className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]" />
-              </label>
+              <div className="col-span-2 block">
+                <span className="text-[#4c515c]">标签（回车或逗号添加）</span>
+                <ChipInput
+                  values={tags}
+                  onChange={setTags}
+                  placeholder="例如 CN2 GIA / BGP / 家宽"
+                />
+              </div>
             </div>
           </fieldset>
 
@@ -439,16 +445,13 @@ export function NodeFormModal({
               </label>
 
               {editing && (
-                <div className="col-span-2 border-t border-[#1d1d1f]/[0.07] pt-2.5">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={enableCalibrate}
-                      onChange={(e) => setEnableCalibrate(e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    <span className="font-medium text-[#1d1d1f]">校准本月已用流量（可选，对齐商家面板）</span>
-                  </label>
+                <div className="col-span-2 border-t border-[#1d1d1f]/[0.07] pt-3">
+                  <InkSwitch
+                    checked={enableCalibrate}
+                    onChange={setEnableCalibrate}
+                    label="校准本月已用流量（可选）"
+                    description="开启后可手动输入商家面板上的入站/出站 GB 进行一次对齐"
+                  />
                   {enableCalibrate && (
                     <div className="mt-2.5 grid grid-cols-2 gap-3">
                       <label className="block">
@@ -508,10 +511,13 @@ export function NodeFormModal({
                 <span className="text-[#4c515c]">到期日期</span>
                 <input type="date" value={expireDate} onChange={(e) => setExpireDate(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
               </label>
-              <label className="flex items-center gap-2 self-end pb-2">
-                <input type="checkbox" checked={autoRenew} onChange={(e) => setAutoRenew(e.target.checked)} className="h-4 w-4" />
-                <span className="text-[#1d1d1f]">已开启自动续费</span>
-              </label>
+              <div className="self-end pb-1">
+                <InkSwitch
+                  checked={autoRenew}
+                  onChange={setAutoRenew}
+                  label="自动续费"
+                />
+              </div>
               <label className="col-span-2 block">
                 <span className="text-[#4c515c]">备注</span>
                 <input value={notes} onChange={(e) => setNotes(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]" />
@@ -728,35 +734,15 @@ export function SettingsModal({
         </div>
 
         <div className="space-y-4 text-[12.5px]">
-          {/* Local Appearance Setting (Shader Backdrop) */}
+          {/* Local Appearance Setting (ui-moments PlanPicker) */}
           <div>
             <div className="mb-2 text-[12px] font-semibold text-[#1d1d1f]">浅色玻璃环境光场（本机生效）</div>
-            <div className="grid grid-cols-3 gap-2">
-              {SHADER_OPTIONS.map((opt) => {
-                const active = shaderPreset === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => onChangeShader(opt.id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-[16px] px-2 py-2.5 text-center transition ${
-                      active
-                        ? "bg-white/95 shadow-[0_0_0_1.5px_#0058c4,0_6px_14px_-6px_rgba(0,88,196,0.28)]"
-                        : "liquid-inset hover:bg-white/75"
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="h-5 w-5 rounded-full shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.16)]"
-                      style={{ background: opt.swatch }}
-                    />
-                    <span className="text-[12px] font-medium text-[#1d1d1f]">{opt.label}</span>
-                    <span className="text-[11px] text-[#555a66]">{opt.desc}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <PlanPicker
+              options={SHADER_OPTIONS}
+              value={shaderPreset}
+              onChange={onChangeShader}
+              legend="选择浅色玻璃环境光场"
+            />
           </div>
 
           {canEditServerSettings && (

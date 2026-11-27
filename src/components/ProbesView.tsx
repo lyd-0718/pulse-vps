@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Play, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Play, Plus, Trash2 } from "lucide-react";
 import type { EdgeProbeRecord, NodeDto, ProbeTargetDto } from "../../shared/types";
 import { formatShortTime } from "../lib/format";
 import {
@@ -8,6 +8,8 @@ import {
   classifyProbe,
   type ProbeCarrier,
 } from "../lib/probes";
+import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
+import { SignalReturnLoader } from "./ui-moments/SignalReturnLoader";
 
 interface ProbesViewProps {
   nodes: NodeDto[];
@@ -194,11 +196,13 @@ export function ProbesView({
                 className="liquid-btn inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium disabled:opacity-60 sm:min-h-[34px]"
               >
                 {runningProbes ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-[#0058c4]" />
+                  <SignalReturnLoader size={18} label="拨测中..." />
                 ) : (
-                  <Play className="h-3.5 w-3.5 text-[#156230]" />
+                  <>
+                    <Play className="h-3.5 w-3.5 text-[#156230]" />
+                    <span>立即拨测</span>
+                  </>
                 )}
-                {runningProbes ? "拨测中..." : "立即拨测"}
               </button>
               <button
                 type="button"
@@ -296,30 +300,12 @@ export function ProbesView({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div
-              role="group"
-              aria-label="按运营商筛选拨测线路"
-              className="liquid-segment-track inline-flex items-center rounded-full p-0.5"
-            >
-              {CARRIER_FILTERS.map((opt) => {
-                const active = carrierFilter === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setCarrierFilter(opt.id)}
-                    className={`min-h-[34px] rounded-full px-3 text-[12px] font-medium transition sm:min-h-[30px] ${
-                      active
-                        ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
-                        : "text-[#4c515c] hover:text-[#1d1d1f]"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+            <LeafSegmentedControl
+              options={CARRIER_FILTERS}
+              value={carrierFilter}
+              onChange={setCarrierFilter}
+              ariaLabel="按运营商筛选拨测线路"
+            />
             {canManage && (
               <button
                 type="button"

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpDown, Check, Copy, Pencil } from "lucide-react";
+import { ArrowUpDown, Pencil } from "lucide-react";
 import type { CurrencyCode, NodeDto } from "../../shared/types";
 import {
   convertCurrency,
@@ -9,6 +9,9 @@ import {
   formatCurrency,
   normalizeMonthlyAmount,
 } from "../lib/format";
+import { CopyMorphButton } from "./ui-moments/CopyMorphButton";
+import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
+import { RollingNumber } from "./ui-moments/RollingNumber";
 
 interface BillingViewProps {
   nodes: NodeDto[];
@@ -30,7 +33,6 @@ export function BillingView({
   onSelectNode,
 }: BillingViewProps) {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [sortBy, setSortBy] = useState<"expiry" | "cost">("expiry");
 
   const shares = useMemo(
@@ -64,28 +66,23 @@ export function BillingView({
 
   const cycleMonth = new Date().toISOString().slice(0, 7);
 
-  const copyStatement = async () => {
-    const lines = [
-      `PulseVPS 月度账单 (${cycleMonth} · ${displayCurrency} · 按参考汇率折算)`,
-      "--------------------------------",
-      ...shares.map(
-        (s) =>
-          `${s.node.name}  ${formatCurrency(s.monthly, displayCurrency)}/月  ${
-            s.node.expireDate ? `到期 ${s.node.expireDate}` : "未设到期日"
-          }`,
-      ),
-      "--------------------------------",
-      `月度合计: ${formatCurrency(monthlyTotal, displayCurrency)}`,
-      `预估年费: ${formatCurrency(annualTotal, displayCurrency)}`,
-    ].join("\n");
-    try {
-      await navigator.clipboard.writeText(lines);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // ignore clipboard errors
-    }
-  };
+  const statementText = useMemo(
+    () =>
+      [
+        `PulseVPS 月度账单 (${cycleMonth} · ${displayCurrency} · 按参考汇率折算)`,
+        "--------------------------------",
+        ...shares.map(
+          (s) =>
+            `${s.node.name}  ${formatCurrency(s.monthly, displayCurrency)}/月  ${
+              s.node.expireDate ? `到期 ${s.node.expireDate}` : "未设到期日"
+            }`,
+        ),
+        "--------------------------------",
+        `月度合计: ${formatCurrency(monthlyTotal, displayCurrency)}`,
+        `预估年费: ${formatCurrency(annualTotal, displayCurrency)}`,
+      ].join("\n"),
+    [cycleMonth, displayCurrency, shares, monthlyTotal, annualTotal],
+  );
 
   return (
     <div className="space-y-6">
@@ -98,8 +95,8 @@ export function BillingView({
               <h2 className="text-[13px] font-medium text-[#4c515c]">月度持有成本</h2>
               <div className="apple-nums mt-1.5 flex items-baseline tracking-[-0.03em]">
                 <span className="text-[22px] font-semibold text-[#4c515c]">{currencySymbol}</span>
-                <span className="text-[40px] font-semibold text-[#1d1d1f]">{intPart}</span>
-                <span className="text-[24px] font-medium text-[#555a66]">.{decPart}</span>
+                <RollingNumber value={intPart} className="text-[40px] font-semibold text-[#1d1d1f]" />
+                <RollingNumber value={`.${decPart}`} className="text-[24px] font-medium text-[#555a66]" />
                 <span className="ml-2 text-[13px] text-[#555a66]">/ 月</span>
               </div>
               <div className="apple-nums mt-1.5 flex flex-wrap items-center gap-x-2 text-[12.5px] text-[#4c515c]">
@@ -110,31 +107,22 @@ export function BillingView({
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="liquid-segment-track inline-flex items-center rounded-full p-0.5">
-                {(["CNY", "USD", "EUR"] as const).map((cur) => (
-                  <button
-                    key={cur}
-                    type="button"
-                    aria-pressed={displayCurrency === cur}
-                    onClick={() => onChangeCurrency(cur)}
-                    className={`min-h-[34px] rounded-full px-3 font-mono-num text-[12px] font-medium transition sm:min-h-[28px] ${
-                      displayCurrency === cur
-                        ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
-                        : "text-[#4c515c] hover:text-[#1d1d1f]"
-                    }`}
-                  >
-                    {cur}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={copyStatement}
-                className="liquid-btn inline-flex min-h-[34px] items-center gap-1 rounded-full px-3 text-[12px] font-medium text-[#0058c4] sm:min-h-[30px]"
-              >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "已复制" : "复制账单"}
-              </button>
+              <LeafSegmentedControl
+                size="sm"
+                ariaLabel="切换结算货币"
+                value={displayCurrency}
+                onChange={onChangeCurrency}
+                options={[
+                  { id: "CNY", label: "CNY" },
+                  { id: "USD", label: "USD" },
+                  { id: "EUR", label: "EUR" },
+                ]}
+              />
+              <CopyMorphButton
+                text={statementText}
+                label="复制账单"
+                copiedLabel="已复制"
+              />
             </div>
           </div>
 
