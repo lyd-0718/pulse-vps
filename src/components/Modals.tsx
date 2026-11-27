@@ -631,7 +631,7 @@ export function ProbeModal({
           </label>
           <label className="block">
             <span className="text-[#4c515c]">目标地址 ({type === "tcp_node" ? "host:port" : "https://..."})</span>
-            <input required value={target} onChange={(e) => setTarget(e.target.value)} placeholder={type === "tcp_node" ? "202.96.128.86:53" : "https://sub.ydiws.xyz"} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
+            <input required value={target} onChange={(e) => setTarget(e.target.value)} placeholder={type === "tcp_node" ? "gd-ct-v4.ip.zstaticcdn.com:80" : "https://sub.ydiws.xyz"} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
           </label>
           {type !== "tcp_node" && (
             <label className="block">

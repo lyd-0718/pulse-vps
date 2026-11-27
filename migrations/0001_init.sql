@@ -105,9 +105,11 @@ CREATE TABLE IF NOT EXISTS probe_targets (
 
 INSERT OR IGNORE INTO probe_targets (id, name, type, target, expected_status, enabled, created_at) VALUES
   ('edge-cf', 'Cloudflare Edge DNS', 'http_edge', 'https://1.1.1.1/cdn-cgi/trace', 200, 1, 1764100000000),
-  ('edge-sub', '订阅聚合站 (sub.ydiws.xyz)', 'http_edge', 'https://sub.ydiws.xyz', 200, 1, 1764100000000),
-  ('tcp-ct', '电信骨干 DNS (202.96.128.86)', 'tcp_node', '202.96.128.86:53', 200, 1, 1764100000000),
-  ('tcp-google', 'Google Anycast DNS (8.8.8.8)', 'tcp_node', '8.8.8.8:53', 200, 1, 1764100000000);
+  ('edge-sub', '订阅聚合站 (sub.ydiws.xyz)', 'http_edge', 'https://sub.ydiws.xyz', 200, 1, 1764100000050),
+  ('tcp-ct', '广东电信', 'tcp_node', 'gd-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000100),
+  ('tcp-cu', '广东联通', 'tcp_node', 'gd-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000200),
+  ('tcp-cm', '广东移动', 'tcp_node', 'gd-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000300),
+  ('tcp-google', 'Google Anycast DNS (8.8.8.8)', 'tcp_node', '8.8.8.8:53', 200, 1, 1764100000400);
 
 CREATE TABLE IF NOT EXISTS edge_probe_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
