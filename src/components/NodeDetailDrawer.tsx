@@ -23,6 +23,7 @@ import {
   formatSpeed,
   formatUptime,
 } from "../lib/format";
+import { CARRIER_FILTERS, carrierBadgeClasses, classifyProbe, type ProbeCarrier } from "../lib/probes";
 import { AccessibleModal } from "./AccessibleModal";
 import { RingGauge } from "./RingGauge";
 
@@ -59,6 +60,7 @@ export function NodeDetailDrawer({
 }: NodeDetailDrawerProps) {
   const titleId = useId();
   const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d">("1h");
+  const [probeCarrier, setProbeCarrier] = useState<"all" | ProbeCarrier>("all");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -370,33 +372,100 @@ export function NodeDetailDrawer({
         </div>
 
         {/* Node Probe Latencies */}
-        {node.nodeProbes.length > 0 && (
-          <div className="mt-6">
-            <h3 className="mb-2.5 text-[14px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">线路拨测</h3>
-            <div className="liquid-inset divide-y divide-[#1d1d1f]/[0.07] rounded-[18px] px-4">
-              {node.nodeProbes.map((p) => (
-                <div key={p.targetId} className="flex items-center justify-between py-2.5 text-[12.5px]">
-                  <div className="min-w-0">
-                    <span className="font-medium text-[#1d1d1f]">{p.name}</span>
-                    <span className="font-mono-num ml-2 text-[11.5px] text-[#555a66]">{p.target}</span>
-                  </div>
-                  <div className="apple-nums flex shrink-0 items-center gap-3">
-                    {p.lossPct > 0 && (
-                      <span className="text-[11.5px] font-semibold text-[#9a4500]">{p.lossPct.toFixed(0)}% 丢包</span>
-                    )}
-                    <span
-                      className={`font-mono-num font-semibold ${
-                        !p.ok ? "text-[#c41e14]" : p.latencyMs > 150 ? "text-[#9a4500]" : "text-[#1d1d1f]"
-                      }`}
-                    >
-                      {p.ok ? `${p.latencyMs.toFixed(1)} ms` : "超时"}
+        {node.nodeProbes.length > 0 && (() => {
+          const carrierRank: Record<ProbeCarrier, number> = { ct: 1, cu: 2, cm: 3, global: 4 };
+          const sortedProbes = [...node.nodeProbes]
+            .map((probe) => ({ probe, meta: classifyProbe(probe.name, probe.target) }))
+            .sort(
+              (a, b) =>
+                a.meta.regionOrder - b.meta.regionOrder ||
+                carrierRank[a.meta.carrier] - carrierRank[b.meta.carrier] ||
+                a.probe.name.localeCompare(b.probe.name, "zh-CN"),
+            );
+          const visibleProbes =
+            probeCarrier === "all"
+              ? sortedProbes
+              : sortedProbes.filter((item) => item.meta.carrier === probeCarrier);
+          const okProbes = visibleProbes.filter((item) => item.probe.ok);
+          const avgMs =
+            okProbes.length > 0
+              ? okProbes.reduce((sum, item) => sum + item.probe.latencyMs, 0) / okProbes.length
+              : null;
+
+          return (
+            <div className="mt-6">
+              <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[14px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">线路拨测</h3>
+                  {avgMs !== null && (
+                    <span className="font-mono-num text-[11.5px] text-[#555a66]">
+                      均值 {avgMs.toFixed(1)} ms ({okProbes.length}/{visibleProbes.length})
                     </span>
-                  </div>
+                  )}
                 </div>
-              ))}
+                <div
+                  role="group"
+                  aria-label="筛选节点线路运营商"
+                  className="liquid-segment-track inline-flex items-center rounded-full p-0.5"
+                >
+                  {CARRIER_FILTERS.map((opt) => {
+                    const active = probeCarrier === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setProbeCarrier(opt.id)}
+                        className={`min-h-[28px] rounded-full px-2.5 text-[11.5px] font-medium transition ${
+                          active
+                            ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
+                            : "text-[#4c515c] hover:text-[#1d1d1f]"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="liquid-inset grid grid-cols-1 gap-x-5 divide-y divide-[#1d1d1f]/[0.07] rounded-[18px] px-4 sm:grid-cols-2 sm:divide-y-0">
+                {visibleProbes.length === 0 ? (
+                  <div className="col-span-full py-5 text-center text-[12px] text-[#555a66]">
+                    当前筛选下暂无线路数据
+                  </div>
+                ) : (
+                  visibleProbes.map(({ probe: p, meta }) => (
+                    <div
+                      key={p.targetId}
+                      className="flex items-center justify-between gap-2 py-2.5 text-[12.5px] sm:border-b sm:border-[#1d1d1f]/[0.07] sm:[&:nth-last-child(-n+2)]:border-b-0"
+                    >
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate font-medium text-[#1d1d1f]">{p.name}</span>
+                        <span
+                          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${carrierBadgeClasses(meta.carrier)}`}
+                        >
+                          {meta.carrierLabel}
+                        </span>
+                      </div>
+                      <div className="apple-nums flex shrink-0 items-center gap-2">
+                        {p.lossPct > 0 && (
+                          <span className="text-[11px] font-semibold text-[#9a4500]">{p.lossPct.toFixed(0)}% 丢包</span>
+                        )}
+                        <span
+                          className={`font-mono-num font-semibold ${
+                            !p.ok ? "text-[#c41e14]" : p.latencyMs > 150 ? "text-[#9a4500]" : "text-[#1d1d1f]"
+                          }`}
+                        >
+                          {p.ok ? `${p.latencyMs.toFixed(1)} ms` : "超时"}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Docker Containers */}
         <div className="mt-6">

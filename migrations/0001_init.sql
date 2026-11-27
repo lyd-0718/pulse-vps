@@ -106,10 +106,29 @@ CREATE TABLE IF NOT EXISTS probe_targets (
 INSERT OR IGNORE INTO probe_targets (id, name, type, target, expected_status, enabled, created_at) VALUES
   ('edge-cf', 'Cloudflare Edge DNS', 'http_edge', 'https://1.1.1.1/cdn-cgi/trace', 200, 1, 1764100000000),
   ('edge-sub', '订阅聚合站 (sub.ydiws.xyz)', 'http_edge', 'https://sub.ydiws.xyz', 200, 1, 1764100000050),
-  ('tcp-ct', '广东电信', 'tcp_node', 'gd-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000100),
-  ('tcp-cu', '广东联通', 'tcp_node', 'gd-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000200),
-  ('tcp-cm', '广东移动', 'tcp_node', 'gd-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000300),
-  ('tcp-google', 'Google Anycast DNS (8.8.8.8)', 'tcp_node', '8.8.8.8:53', 200, 1, 1764100000400);
+  ('tcp-bj-ct', '北京电信', 'tcp_node', 'bj-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000100),
+  ('tcp-bj-cu', '北京联通', 'tcp_node', 'bj-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000110),
+  ('tcp-bj-cm', '北京移动', 'tcp_node', 'bj-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000120),
+  ('tcp-sh-ct', '上海电信', 'tcp_node', 'sh-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000200),
+  ('tcp-sh-cu', '上海联通', 'tcp_node', 'sh-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000210),
+  ('tcp-sh-cm', '上海移动', 'tcp_node', 'sh-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000220),
+  ('tcp-ct', '广东电信', 'tcp_node', 'gd-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000300),
+  ('tcp-cu', '广东联通', 'tcp_node', 'gd-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000310),
+  ('tcp-cm', '广东移动', 'tcp_node', 'gd-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000320),
+  ('tcp-hb-ct', '湖北电信', 'tcp_node', 'hb-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000400),
+  ('tcp-hb-cu', '湖北联通', 'tcp_node', 'hb-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000410),
+  ('tcp-hb-cm', '湖北移动', 'tcp_node', 'hb-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000420),
+  ('tcp-sc-ct', '四川电信', 'tcp_node', 'sc-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000500),
+  ('tcp-sc-cu', '四川联通', 'tcp_node', 'sc-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000510),
+  ('tcp-sc-cm', '四川移动', 'tcp_node', 'sc-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000520),
+  ('tcp-ln-ct', '辽宁电信', 'tcp_node', 'ln-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000600),
+  ('tcp-ln-cu', '辽宁联通', 'tcp_node', 'ln-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000610),
+  ('tcp-ln-cm', '辽宁移动', 'tcp_node', 'ln-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000620),
+  ('tcp-sn-ct', '陕西电信', 'tcp_node', 'sn-ct-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000700),
+  ('tcp-sn-cu', '陕西联通', 'tcp_node', 'sn-cu-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000710),
+  ('tcp-sn-cm', '陕西移动', 'tcp_node', 'sn-cm-v4.ip.zstaticcdn.com:80', 200, 1, 1764100000720),
+  ('tcp-google', 'Google Anycast DNS', 'tcp_node', '8.8.8.8:53', 200, 1, 1764100000800),
+  ('tcp-cf', 'Cloudflare Anycast DNS', 'tcp_node', '1.1.1.1:53', 200, 1, 1764100000810);
 
 CREATE TABLE IF NOT EXISTS edge_probe_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

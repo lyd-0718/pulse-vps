@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Play, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { EdgeProbeRecord, NodeDto, ProbeTargetDto } from "../../shared/types";
 import { formatShortTime } from "../lib/format";
+import {
+  CARRIER_FILTERS,
+  carrierBadgeClasses,
+  classifyProbe,
+  type ProbeCarrier,
+} from "../lib/probes";
 
 interface ProbesViewProps {
   nodes: NodeDto[];
@@ -108,8 +114,64 @@ export function ProbesView({
   onSelectNode,
 }: ProbesViewProps) {
   const [hoveredCell, setHoveredCell] = useState<{ nodeId: string; targetId: string } | null>(null);
+  const [carrierFilter, setCarrierFilter] = useState<"all" | ProbeCarrier>("all");
   const edgeTargets = probeTargets.filter((t) => t.type === "http_edge");
-  const nodeTargets = probeTargets.filter((t) => t.type === "tcp_node" || t.type === "http_node");
+  const nodeTargets = useMemo(
+    () => probeTargets.filter((t) => t.type === "tcp_node" || t.type === "http_node"),
+    [probeTargets],
+  );
+
+  const enrichedTargets = useMemo(
+    () =>
+      nodeTargets.map((target) => ({
+        target,
+        meta: classifyProbe(target.name, target.target),
+      })),
+    [nodeTargets],
+  );
+
+  const filteredTargets = useMemo(
+    () =>
+      carrierFilter === "all"
+        ? enrichedTargets
+        : enrichedTargets.filter((item) => item.meta.carrier === carrierFilter),
+    [enrichedTargets, carrierFilter],
+  );
+
+  const groupedTargets = useMemo(() => {
+    const groups = new Map<string, { group: string; order: number; items: typeof filteredTargets }>();
+    for (const item of filteredTargets) {
+      const existing = groups.get(item.meta.regionGroup);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        groups.set(item.meta.regionGroup, {
+          group: item.meta.regionGroup,
+          order: item.meta.regionOrder,
+          items: [item],
+        });
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => a.order - b.order);
+  }, [filteredTargets]);
+
+  const nodeSummaries = useMemo(() => {
+    const map = new Map<string, { avgMs: number | null; okCount: number; totalCount: number }>();
+    const visibleIds = new Set(filteredTargets.map((item) => item.target.id));
+    for (const node of nodes) {
+      const matched = node.nodeProbes.filter((p) => visibleIds.has(p.targetId));
+      const okProbes = matched.filter((p) => p.ok);
+      const avgMs =
+        okProbes.length > 0
+          ? okProbes.reduce((sum, p) => sum + p.latencyMs, 0) / okProbes.length
+          : null;
+      map.set(node.id, { avgMs, okCount: okProbes.length, totalCount: matched.length });
+    }
+    return map;
+  }, [nodes, filteredTargets]);
+
+  const canManage = authenticated && !demoMode;
+  const colSpanAll = Math.max(2, nodes.length + 1 + (canManage ? 1 : 0));
 
   return (
     <div className="space-y-6">
@@ -224,7 +286,7 @@ export function ProbesView({
         </div>
       </section>
 
-      {/* Multi-VPS Latency Matrix (direct inside glass panel — no redundant nested card box) */}
+      {/* Multi-VPS Latency Matrix (routes as rows grouped by region, VPS hosts as columns) */}
       <section className="liquid-glass rounded-[26px] p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -232,18 +294,44 @@ export function ProbesView({
               多节点线路延迟矩阵
             </h2>
             <p className="mt-0.5 text-[12.5px] text-[#4c515c]">
-              各台 VPS 上的 Go Agent 定时执行 TCPing 三次握手测速，点击主机名可展开详情
+              各台 VPS 定时执行 TCPing 三次握手测速，支持按运营商筛选与多机横向对比，点击主机名展开详情
             </p>
           </div>
-          {authenticated && !demoMode && (
-            <button
-              type="button"
-              onClick={onAddProbe}
-              className="liquid-btn inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium sm:min-h-[34px]"
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label="按运营商筛选拨测线路"
+              className="liquid-segment-track inline-flex items-center rounded-full p-0.5"
             >
-              <Plus className="h-3.5 w-3.5 text-[#0058c4]" /> 添加节点目标
-            </button>
-          )}
+              {CARRIER_FILTERS.map((opt) => {
+                const active = carrierFilter === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCarrierFilter(opt.id)}
+                    className={`min-h-[34px] rounded-full px-3 text-[12px] font-medium transition sm:min-h-[30px] ${
+                      active
+                        ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
+                        : "text-[#4c515c] hover:text-[#1d1d1f]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {canManage && (
+              <button
+                type="button"
+                onClick={onAddProbe}
+                className="liquid-btn inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium sm:min-h-[34px]"
+              >
+                <Plus className="h-3.5 w-3.5 text-[#0058c4]" /> 添加节点目标
+              </button>
+            )}
+          </div>
         </div>
 
         <div
@@ -253,124 +341,175 @@ export function ProbesView({
           <table className="w-full text-left text-[12.5px]">
             <thead className="border-b border-[#1d1d1f]/[0.08] text-[12px] text-[#4c515c]">
               <tr>
-                <th className="px-3 py-3 font-medium">VPS 主机</th>
-                {nodeTargets.map((t) => {
-                  const colActive = hoveredCell?.targetId === t.id;
+                <th className="min-w-[200px] px-3 py-3 font-medium">
+                  拨测线路 <span className="font-mono-num text-[11px] text-[#555a66]">({filteredTargets.length})</span>
+                </th>
+                {nodes.map((node) => {
+                  const colActive = hoveredCell?.nodeId === node.id;
+                  const summary = nodeSummaries.get(node.id);
                   return (
                     <th
-                      key={t.id}
-                      className={`px-3 py-3 font-medium transition-colors ${
+                      key={node.id}
+                      className={`min-w-[144px] px-3 py-3 font-medium transition-colors ${
                         colActive ? "bg-white/60 text-[#0058c4]" : ""
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className={colActive ? "text-[#0058c4]" : "text-[#1d1d1f]"}>{t.name}</div>
-                          <div className="font-mono-num text-[11.5px] font-normal text-[#555a66]">{t.target}</div>
-                        </div>
-                        {authenticated && !demoMode && (
-                          <button
-                            type="button"
-                            onClick={() => onRequestDeleteProbe(t)}
-                            aria-label={`删除节点拨测 ${t.name}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#555a66] hover:bg-[#FF3B30]/10 hover:text-[#c41e14]"
-                            title="删除"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                      <button
+                        type="button"
+                        onClick={() => onSelectNode(node.id)}
+                        className="group inline-flex min-h-[30px] items-center gap-1.5 text-left transition-colors hover:text-[#0058c4]"
+                      >
+                        <span aria-hidden="true">{node.flag}</span>
+                        <span className={colActive ? "font-semibold text-[#0058c4]" : "font-semibold text-[#1d1d1f] group-hover:text-[#0058c4]"}>
+                          {node.name}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: node.online ? "#34C759" : "#FF3B30" }}
+                        />
+                      </button>
+                      <div className="mt-0.5 font-mono-num text-[11px] font-normal text-[#555a66]">
+                        {summary && summary.avgMs !== null
+                          ? `均值 ${summary.avgMs.toFixed(1)} ms · ${summary.okCount}/${summary.totalCount}`
+                          : "等待采样"}
                       </div>
                     </th>
                   );
                 })}
+                {canManage && <th className="w-10 px-2 py-3 text-right font-medium" aria-label="操作" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1d1d1f]/[0.06]">
               {nodes.length === 0 ? (
                 <tr>
-                  <td colSpan={Math.max(2, nodeTargets.length + 1)} className="p-8 text-center text-[#555a66]">
+                  <td colSpan={colSpanAll} className="p-8 text-center text-[#555a66]">
                     暂无在线节点数据
                   </td>
                 </tr>
+              ) : filteredTargets.length === 0 ? (
+                <tr>
+                  <td colSpan={colSpanAll} className="p-8 text-center text-[#555a66]">
+                    当前筛选条件下暂无拨测线路
+                  </td>
+                </tr>
               ) : (
-                nodes.map((node) => {
-                  const rowActive = hoveredCell?.nodeId === node.id;
-                  return (
-                    <tr
-                      key={node.id}
-                      className={`transition-colors ${rowActive ? "bg-white/45" : ""}`}
-                    >
-                      <td className="whitespace-nowrap px-3 py-3.5 font-medium text-[#1d1d1f]">
-                        <button
-                          type="button"
-                          onClick={() => onSelectNode(node.id)}
-                          className="inline-flex min-h-[32px] items-center gap-2 rounded-lg text-left transition-colors hover:text-[#0058c4]"
-                        >
-                          <span aria-hidden="true">{node.flag}</span>
-                          <span>{node.name}</span>
-                        </button>
-                      </td>
-                      {nodeTargets.map((target) => {
-                        const res = node.nodeProbes.find((p) => p.targetId === target.id);
-                        const isCrosshair =
-                          hoveredCell?.nodeId === node.id || hoveredCell?.targetId === target.id;
-                        const isExact =
-                          hoveredCell?.nodeId === node.id && hoveredCell?.targetId === target.id;
+                groupedTargets.flatMap((section) => {
+                  const rows = section.items.map(({ target, meta }) => {
+                    const rowActive = hoveredCell?.targetId === target.id;
+                    return (
+                      <tr
+                        key={target.id}
+                        className={`transition-colors ${rowActive ? "bg-white/45" : ""}`}
+                      >
+                        <td className="whitespace-nowrap px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[#1d1d1f]">{target.name}</span>
+                            <span
+                              className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold ${carrierBadgeClasses(meta.carrier)}`}
+                            >
+                              {meta.carrierLabel}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 font-mono-num text-[11px] text-[#555a66]">
+                            {target.target}
+                          </div>
+                        </td>
+                        {nodes.map((node) => {
+                          const res = node.nodeProbes.find((p) => p.targetId === target.id);
+                          const isCrosshair =
+                            hoveredCell?.nodeId === node.id || hoveredCell?.targetId === target.id;
+                          const isExact =
+                            hoveredCell?.nodeId === node.id && hoveredCell?.targetId === target.id;
 
-                        if (!res) {
+                          if (!res) {
+                            return (
+                              <td
+                                key={node.id}
+                                onMouseEnter={() => setHoveredCell({ nodeId: node.id, targetId: target.id })}
+                                className={`px-3 py-2.5 font-mono-num text-[#555a66] transition-colors ${
+                                  isExact ? "bg-white/80" : isCrosshair ? "bg-white/35" : ""
+                                }`}
+                              >
+                                —
+                              </td>
+                            );
+                          }
+                          const dotColor = !res.ok
+                            ? "#FF3B30"
+                            : res.latencyMs <= 60
+                              ? "#34C759"
+                              : res.latencyMs <= 145
+                                ? "#007AFF"
+                                : "#FF9500";
+                          const barWidth = res.ok
+                            ? Math.min(100, Math.max(8, (res.latencyMs / 250) * 100))
+                            : 100;
+
                           return (
                             <td
-                              key={target.id}
+                              key={node.id}
                               onMouseEnter={() => setHoveredCell({ nodeId: node.id, targetId: target.id })}
-                              className="px-3 py-3.5 font-mono-num text-[#555a66]"
+                              className={`whitespace-nowrap px-3 py-2.5 font-mono-num transition-colors ${
+                                isExact ? "bg-white/80" : isCrosshair ? "bg-white/35" : ""
+                              }`}
                             >
-                              —
+                              <div className="flex items-center gap-2 text-[#1d1d1f]">
+                                <span
+                                  aria-hidden="true"
+                                  className="h-1.5 w-1.5 rounded-full"
+                                  style={{ backgroundColor: dotColor }}
+                                />
+                                <span className={`font-medium ${!res.ok ? "text-[#c41e14]" : ""}`}>
+                                  {res.ok ? `${res.latencyMs.toFixed(1)} ms` : "超时"}
+                                </span>
+                                {res.lossPct > 0 && (
+                                  <span className="text-[11px] font-semibold text-[#9a4500]">
+                                    {res.lossPct}% 丢包
+                                  </span>
+                                )}
+                              </div>
+                              <div className="liquid-track mt-1 h-[3px] w-20 overflow-hidden rounded-full">
+                                <div
+                                  className="h-full rounded-full transition-all duration-300"
+                                  style={{ width: `${barWidth}%`, backgroundColor: dotColor }}
+                                />
+                              </div>
                             </td>
                           );
-                        }
-                        const dotColor = !res.ok
-                          ? "#FF3B30"
-                          : res.latencyMs <= 60
-                            ? "#34C759"
-                            : res.latencyMs <= 145
-                              ? "#007AFF"
-                              : "#FF9500";
-                        const barWidth = res.ok ? Math.min(100, Math.max(8, (res.latencyMs / 200) * 100)) : 100;
-
-                        return (
-                          <td
-                            key={target.id}
-                            onMouseEnter={() => setHoveredCell({ nodeId: node.id, targetId: target.id })}
-                            className={`whitespace-nowrap px-3 py-3 font-mono-num transition-colors ${
-                              isExact ? "bg-white/80" : isCrosshair ? "bg-white/35" : ""
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 text-[#1d1d1f]">
-                              <span
-                                aria-hidden="true"
-                                className="h-1.5 w-1.5 rounded-full"
-                                style={{ backgroundColor: dotColor }}
-                              />
-                              <span className={`font-medium ${!res.ok ? "text-[#c41e14]" : ""}`}>
-                                {res.ok ? `${res.latencyMs.toFixed(1)} ms` : "超时"}
-                              </span>
-                              {res.lossPct > 0 && (
-                                <span className="text-[11.5px] font-semibold text-[#9a4500]">
-                                  {res.lossPct}% 丢包
-                                </span>
-                              )}
-                            </div>
-                            <div className="liquid-track mt-1.5 h-[3px] w-20 overflow-hidden rounded-full">
-                              <div
-                                className="h-full rounded-full transition-all duration-300"
-                                style={{ width: `${barWidth}%`, backgroundColor: dotColor }}
-                              />
-                            </div>
+                        })}
+                        {canManage && (
+                          <td className="px-2 py-2.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => onRequestDeleteProbe(target)}
+                              aria-label={`删除节点拨测 ${target.name}`}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#555a66] transition hover:bg-[#FF3B30]/10 hover:text-[#c41e14]"
+                              title="删除"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </td>
-                        );
-                      })}
-                    </tr>
-                  );
+                        )}
+                      </tr>
+                    );
+                  });
+
+                  if (groupedTargets.length <= 1) {
+                    return rows;
+                  }
+
+                  return [
+                    <tr key={`group-${section.group}`} className="bg-[#1d1d1f]/[0.025]">
+                      <td
+                        colSpan={colSpanAll}
+                        className="px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-[#4c515c]"
+                      >
+                        {section.group}
+                      </td>
+                    </tr>,
+                    ...rows,
+                  ];
                 })
               )}
             </tbody>
