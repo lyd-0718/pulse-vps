@@ -1,6 +1,9 @@
 node_modules/
 dist/
 dist-agent/
+dist-server/
+server/webdist/*
+!server/webdist/.gitkeep
 .wrangler/
 .dev.vars
 *.log

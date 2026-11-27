@@ -21,6 +21,8 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
+const AgentVersion = "1.1.0"
+
 type Collector struct {
 	mu               sync.Mutex
 	dockerSock       string
@@ -33,6 +35,12 @@ type Collector struct {
 	lastDockerAt     time.Time
 	cachedIP         string
 	lastIPAt         time.Time
+	staticLoaded     bool
+	cachedOS         string
+	cachedArch       string
+	cachedKernel     string
+	cachedCPUModel   string
+	cachedCPUCores   int
 }
 
 func NewCollector(dockerSock string, preferredIface string) *Collector {
@@ -187,35 +195,63 @@ func (c *Collector) resolvePublicIP() string {
 
 func (c *Collector) Collect(ctx context.Context, probes []NodeProbeResult) AgentReportPayload {
 	payload := AgentReportPayload{
-		Arch:       runtime.GOARCH,
-		Containers: []ContainerInfo{},
-		Probes:     probes,
+		Arch:         runtime.GOARCH,
+		AgentVersion: AgentVersion,
+		NetIface:     c.SelectedIface(),
+		Containers:   []ContainerInfo{},
+		Probes:       probes,
 	}
 	if payload.Probes == nil {
 		payload.Probes = []NodeProbeResult{}
 	}
 
-	if hInfo, err := host.InfoWithContext(ctx); err == nil {
-		osName := strings.TrimSpace(hInfo.Platform + " " + hInfo.PlatformVersion)
-		if osName == "" {
-			osName = hInfo.OS
+	c.mu.Lock()
+	loaded := c.staticLoaded
+	c.mu.Unlock()
+
+	if !loaded {
+		var osName, arch, kernel, cpuModel string
+		var cores int
+		arch = runtime.GOARCH
+		if hInfo, err := host.InfoWithContext(ctx); err == nil {
+			osName = strings.TrimSpace(hInfo.Platform + " " + hInfo.PlatformVersion)
+			if osName == "" {
+				osName = hInfo.OS
+			}
+			kernel = hInfo.KernelVersion
+			if hInfo.KernelArch != "" {
+				arch = hInfo.KernelArch
+			}
 		}
-		payload.OS = osName
-		payload.Kernel = hInfo.KernelVersion
-		payload.Uptime = hInfo.Uptime
-		if hInfo.KernelArch != "" {
-			payload.Arch = hInfo.KernelArch
+		if cnt, err := cpu.CountsWithContext(ctx, true); err == nil {
+			cores = cnt
 		}
+		if cpuInfos, err := cpu.InfoWithContext(ctx); err == nil && len(cpuInfos) > 0 {
+			cpuModel = strings.TrimSpace(cpuInfos[0].ModelName)
+			if cores == 0 {
+				cores = int(cpuInfos[0].Cores)
+			}
+		}
+		c.mu.Lock()
+		c.cachedOS = osName
+		c.cachedArch = arch
+		c.cachedKernel = kernel
+		c.cachedCPUModel = cpuModel
+		c.cachedCPUCores = cores
+		c.staticLoaded = true
+		c.mu.Unlock()
 	}
 
-	if cores, err := cpu.CountsWithContext(ctx, true); err == nil {
-		payload.CPUCores = cores
-	}
-	if cpuInfos, err := cpu.InfoWithContext(ctx); err == nil && len(cpuInfos) > 0 {
-		payload.CPUModel = strings.TrimSpace(cpuInfos[0].ModelName)
-		if payload.CPUCores == 0 {
-			payload.CPUCores = int(cpuInfos[0].Cores)
-		}
+	c.mu.Lock()
+	payload.OS = c.cachedOS
+	payload.Arch = c.cachedArch
+	payload.Kernel = c.cachedKernel
+	payload.CPUModel = c.cachedCPUModel
+	payload.CPUCores = c.cachedCPUCores
+	c.mu.Unlock()
+
+	if up, err := host.UptimeWithContext(ctx); err == nil {
+		payload.Uptime = up
 	}
 	if percents, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(percents) > 0 {
 		payload.CPUUsage = percents[0]

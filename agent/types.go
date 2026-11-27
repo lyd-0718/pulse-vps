@@ -32,12 +32,14 @@ type NodeProbeResult struct {
 }
 
 type AgentReportPayload struct {
-	IP         string            `json:"ip,omitempty"`
-	IPv6       string            `json:"ipv6,omitempty"`
-	OS         string            `json:"os"`
-	Arch       string            `json:"arch"`
-	Kernel     string            `json:"kernel"`
-	CPUModel   string            `json:"cpuModel"`
+	IP           string            `json:"ip,omitempty"`
+	IPv6         string            `json:"ipv6,omitempty"`
+	OS           string            `json:"os"`
+	Arch         string            `json:"arch"`
+	Kernel       string            `json:"kernel"`
+	AgentVersion string            `json:"agentVersion,omitempty"`
+	NetIface     string            `json:"netIface,omitempty"`
+	CPUModel     string            `json:"cpuModel"`
 	CPUCores   int               `json:"cpuCores"`
 	MemTotal   uint64            `json:"memTotal"`
 	SwapTotal  uint64            `json:"swapTotal"`

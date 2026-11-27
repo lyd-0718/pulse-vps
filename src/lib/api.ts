@@ -1,4 +1,5 @@
 import type {
+  AlertConfig,
   BootstrapResponse,
   HistoryPoint,
   NodeDto,
@@ -99,7 +100,7 @@ export async function loginAdmin(password: string): Promise<{ token: string; exp
 
 export function fetchNodeHistory(
   nodeId: string,
-  range: "1h" | "6h" | "24h" | "7d",
+  range: "1h" | "6h" | "24h" | "7d" | "30d",
 ): Promise<{ nodeId: string; range: string; points: HistoryPoint[] }> {
   return request(`/api/nodes/${encodeURIComponent(nodeId)}/history?range=${range}`);
 }
@@ -138,4 +139,18 @@ export function runProbesNow(): Promise<{ ok: boolean; checked: number }> {
 
 export function updateSettings(payload: Partial<SettingsDto>): Promise<{ settings: SettingsDto }> {
   return request("/api/settings", { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export function sendTestAlert(alerts?: AlertConfig): Promise<{ ok: boolean }> {
+  return request("/api/alerts/test", {
+    method: "POST",
+    body: JSON.stringify(alerts ? { alerts } : {}),
+  });
+}
+
+export function buildWebSocketUrl(): string {
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const token = getStoredToken();
+  const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `${proto}//${window.location.host}/api/ws${qs}`;
 }

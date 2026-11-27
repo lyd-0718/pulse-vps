@@ -4,6 +4,8 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -55,7 +57,7 @@ export function NodeDetailPage({
   onInstallCmd,
   onDelete,
 }: NodeDetailPageProps) {
-  const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d">("1h");
+  const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d" | "30d">("1h");
   const [probeCarrier, setProbeCarrier] = useState<"all" | ProbeCarrier>("all");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -100,13 +102,17 @@ export function NodeDetailPage({
   const expireDays = daysUntil(node.expireDate);
 
   const chartData = history.map((h) => ({
-    label: range === "7d" ? formatShortDateTime(h.ts) : formatShortTime(h.ts),
+    label: range === "7d" || range === "30d" ? formatShortDateTime(h.ts) : formatShortTime(h.ts),
     cpu: h.cpu,
     memPct: h.memPct,
     rxMBs: Number((h.rxSpeed / (1024 * 1024)).toFixed(2)),
     txMBs: Number((h.txSpeed / (1024 * 1024)).toFixed(2)),
     load1: h.load1,
+    ctMs: h.probes?.ctMs ?? null,
+    cuMs: h.probes?.cuMs ?? null,
+    cmMs: h.probes?.cmMs ?? null,
   }));
+  const hasProbeHistory = chartData.some((d) => d.ctMs !== null || d.cuMs !== null || d.cmMs !== null);
 
   const carrierRank: Record<ProbeCarrier, number> = { ct: 1, cu: 2, cm: 3, global: 4 };
   const sortedProbes = [...node.nodeProbes]
@@ -296,9 +302,9 @@ export function NodeDetailPage({
       <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">性能历史趋势</h3>
+            <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">性能与三网历史趋势</h3>
             <p className="mt-0.5 text-[12px] text-[#555a66]">
-              Agent 每分钟落盘一次性能快照，支持查看近 7 天资源与带宽波动
+              每分钟自动落盘 CPU、带宽与三网均值延迟，本地 SQLite 保留近 30 天历史
             </p>
           </div>
           <LeafSegmentedControl
@@ -311,6 +317,7 @@ export function NodeDetailPage({
               { id: "6h", label: "6h" },
               { id: "24h", label: "24h" },
               { id: "7d", label: "7d" },
+              { id: "30d", label: "30d" },
             ]}
           />
         </div>
@@ -402,6 +409,38 @@ export function NodeDetailPage({
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {hasProbeHistory && (
+              <div className="liquid-inset rounded-[20px] p-4 xl:col-span-2">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
+                  <span className="font-medium text-[#1d1d1f]">全国三网平均延迟趋势 (ms)</span>
+                  <div className="flex items-center gap-3 text-[11.5px] text-[#4c515c]">
+                    <span className="flex items-center gap-1.5">
+                      <i className="h-1.5 w-1.5 rounded-full bg-[#007AFF]" /> 电信
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <i className="h-1.5 w-1.5 rounded-full bg-[#e11d48]" /> 联通
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <i className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" /> 移动
+                    </span>
+                  </div>
+                </div>
+                <div className="h-52 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid vertical={false} stroke="rgba(29,29,31,0.07)" />
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10.5, fill: "#555a66" }} minTickGap={28} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10.5, fill: "#555a66" }} width={38} unit="ms" />
+                      <Tooltip contentStyle={APPLE_TOOLTIP_STYLE} />
+                      <Line type="monotone" dataKey="ctMs" name="电信 ms" stroke="#007AFF" strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+                      <Line type="monotone" dataKey="cuMs" name="联通 ms" stroke="#e11d48" strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+                      <Line type="monotone" dataKey="cmMs" name="移动 ms" stroke="#16a34a" strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -481,6 +520,14 @@ export function NodeDetailPage({
                 {node.kernel || "—"}
               </span>
             </div>
+            {(node.agentVersion || node.netIface) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <span className="text-[#4c515c]">Agent 与网卡</span>
+                <span className="font-mono-num text-right text-[#1d1d1f]">
+                  {node.agentVersion ? `v${node.agentVersion}` : "v1.0"} · {node.netIface || "auto"}
+                </span>
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2 py-2.5">
               <span className="text-[#4c515c]">负载 (1/5/15m)</span>
               <span className="font-mono-num text-[#1d1d1f]">

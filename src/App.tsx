@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import type {
+  AlertConfig,
   BootstrapResponse,
   CurrencyCode,
   NodeDto,
@@ -73,7 +74,27 @@ const STATUS_OPTIONS: ReadonlyArray<{ id: StatusFilter; label: string }> = [
   { id: "offline", label: "离线" },
 ];
 
+const VALID_TABS: ReadonlySet<TabId> = new Set(["overview", "probes", "containers", "billing", "settings"]);
+
+function parseHashRoute(): { tab: TabId; nodeId: string | null } {
+  try {
+    const raw = window.location.hash.replace(/^#\/?/, "");
+    if (!raw) return { tab: "overview", nodeId: null };
+    if (raw.startsWith("host/")) {
+      const id = decodeURIComponent(raw.slice(5));
+      if (id) return { tab: "overview", nodeId: id };
+    }
+    if (VALID_TABS.has(raw as TabId)) {
+      return { tab: raw as TabId, nodeId: null };
+    }
+  } catch {
+    // ignore malformed hash
+  }
+  return { tab: "overview", nodeId: null };
+}
+
 export function App() {
+  const initialRoute = useMemo(() => parseHashRoute(), []);
   const [shaderPreset, setShaderPreset] = useState<ShaderPreset>(() => {
     try {
       const saved = localStorage.getItem("pulsevps_shader_v2") as ShaderPreset | null;
@@ -82,7 +103,7 @@ export function App() {
       return "silk-mesh";
     }
   });
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useState<TabId>(initialRoute.tab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem("pulsevps_sidebar_collapsed") === "1";
@@ -99,9 +120,11 @@ export function App() {
   const [liveData, setLiveData] = useState<BootstrapResponse | null>(null);
   const [liveError, setLiveError] = useState<string>("");
   const [refreshingLive, setRefreshingLive] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnectSeq, setWsReconnectSeq] = useState(0);
   const [currencyOverride, setCurrencyOverride] = useState<CurrencyCode | null>(null);
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialRoute.nodeId);
   const [loginOpen, setLoginOpen] = useState(false);
   const [nodeFormOpen, setNodeFormOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<NodeDto | null>(null);
@@ -119,12 +142,35 @@ export function App() {
   const navigateTab = useCallback((nextTab: TabId) => {
     setSelectedNodeId(null);
     setTab(nextTab);
+    const nextHash = nextTab === "overview" ? "#/" : `#/${nextTab}`;
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
     mainScrollRef.current?.scrollTo({ top: 0 });
   }, []);
 
   const openNodePage = useCallback((nodeId: string) => {
     setSelectedNodeId(nodeId);
+    const nextHash = `#/host/${encodeURIComponent(nodeId)}`;
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
     mainScrollRef.current?.scrollTo({ top: 0 });
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const parsed = parseHashRoute();
+      if (parsed.nodeId) {
+        setSelectedNodeId(parsed.nodeId);
+      } else {
+        setSelectedNodeId(null);
+        setTab(parsed.tab);
+      }
+      mainScrollRef.current?.scrollTo({ top: 0 });
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   const showToast = useCallback((text: string, tone: "normal" | "error" = "normal") => {
@@ -185,8 +231,59 @@ export function App() {
     loadLive();
   }, [loadLive]);
 
-  // Poll every 10s while the tab is visible (preserves Cloudflare Free quota)
+  // WebSocket real-time streaming with automatic reconnect (falls back to HTTP polling if unavailable)
   useEffect(() => {
+    let closed = false;
+    let ws: WebSocket | null = null;
+    let retryTimer: number | null = null;
+    let attempt = 0;
+
+    const connect = () => {
+      if (closed) return;
+      try {
+        ws = new WebSocket(api.buildWebSocketUrl());
+      } catch {
+        setWsConnected(false);
+        return;
+      }
+      ws.onopen = () => {
+        attempt = 0;
+        setWsConnected(true);
+        setLiveError("");
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.data) as { type?: string; data?: BootstrapResponse };
+          if (parsed.type === "bootstrap" && parsed.data) {
+            setLiveData(parsed.data);
+            setLiveError("");
+          }
+        } catch {
+          // ignore malformed frames
+        }
+      };
+      ws.onerror = () => {
+        ws?.close();
+      };
+      ws.onclose = () => {
+        setWsConnected(false);
+        if (closed) return;
+        const delay = Math.min(15_000, 1500 * Math.pow(1.6, attempt++));
+        retryTimer = window.setTimeout(connect, delay);
+      };
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      ws?.close();
+    };
+  }, [wsReconnectSeq]);
+
+  // Fallback HTTP polling ONLY when WebSocket is disconnected
+  useEffect(() => {
+    if (wsConnected) return;
     const onVisibility = () => {
       if (!document.hidden) loadLive();
     };
@@ -198,7 +295,7 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(id);
     };
-  }, [loadLive]);
+  }, [wsConnected, loadLive]);
 
   // Global keyboard shortcuts (1-4 switch views, / focus search, r refresh)
   useEffect(() => {
@@ -337,12 +434,14 @@ export function App() {
   const handleLogin = async (password: string) => {
     await api.loginAdmin(password);
     await loadLive();
+    setWsReconnectSeq((n) => n + 1);
     showToast("已登录管理员后台");
   };
 
   const handleLogout = () => {
     api.setStoredToken(null);
     loadLive();
+    setWsReconnectSeq((n) => n + 1);
     showToast("已退出登录");
   };
 
@@ -465,6 +564,16 @@ export function App() {
     }
   };
 
+  const handleTestAlert = async (alerts: AlertConfig) => {
+    try {
+      await api.sendTestAlert(alerts);
+      showToast("测试告警已发送，请查收消息");
+    } catch (err) {
+      handleAdminError(err, "测试告警发送失败");
+      throw err;
+    }
+  };
+
   const allOnline = totalNodes > 0 && onlineNodes === totalNodes;
   const fleetDotColor = totalNodes === 0 ? "#8e8e93" : allOnline ? "#34C759" : onlineNodes === 0 ? "#FF3B30" : "#FF9500";
   const isAuthenticatedLive = Boolean(liveData?.authenticated);
@@ -516,7 +625,7 @@ export function App() {
               <div className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setSelectedNodeId(null)}
+                  onClick={() => navigateTab(tab)}
                   className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium text-[#4c515c] transition hover:bg-white/75 hover:text-[#1d1d1f]"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
@@ -540,13 +649,18 @@ export function App() {
                   </span>
                   <span aria-hidden="true" className="text-[#9ca3af]">·</span>
                   <span className="apple-nums">本月 {formatBytes(totalMonthTraffic, 1)}</span>
-                  {activeData.serverTime > 0 && (
-                    <>
-                      <span aria-hidden="true" className="text-[#9ca3af]">·</span>
+                  <span aria-hidden="true" className="text-[#9ca3af]">·</span>
+                  {wsConnected ? (
+                    <span className="inline-flex items-center gap-1.5 font-medium text-[#156230]">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
+                      实时推送
+                    </span>
+                  ) : (
+                    activeData.serverTime > 0 && (
                       <span className="apple-nums text-[#555a66]">
                         同步于 {formatRelativeTime(activeData.serverTime)}
                       </span>
-                    </>
+                    )
                   )}
                 </div>
               </>
@@ -955,8 +1069,10 @@ export function App() {
                 liveNodeCount={liveData?.nodes.length ?? 0}
                 shaderPreset={shaderPreset}
                 authenticated={isAuthenticatedLive}
+                wsConnected={wsConnected}
                 onChangeShader={setShaderPreset}
                 onSave={handleSaveSettings}
+                onTestAlert={handleTestAlert}
                 onOpenLogin={() => setLoginOpen(true)}
               />
             )}

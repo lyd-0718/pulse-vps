@@ -50,6 +50,8 @@ export interface NodeDto {
   os: string;
   arch: string;
   kernel: string;
+  agentVersion?: string;
+  netIface?: string;
   cpuModel: string;
   cpuCores: number;
   memTotal: number;
@@ -97,6 +99,15 @@ export interface NodeUpsertPayload extends Partial<NodeDto> {
   calibrateTxGb?: number;
 }
 
+export interface ProbeHistorySummary {
+  ctMs?: number;
+  cuMs?: number;
+  cmMs?: number;
+  ctLoss?: number;
+  cuLoss?: number;
+  cmLoss?: number;
+}
+
 export interface HistoryPoint {
   ts: number;
   cpu: number;
@@ -106,6 +117,7 @@ export interface HistoryPoint {
   load1: number;
   rxSpeed: number;
   txSpeed: number;
+  probes?: ProbeHistorySummary;
 }
 
 export interface ProbeTargetDto {
@@ -125,11 +137,26 @@ export interface EdgeProbeRecord {
   error?: string;
 }
 
+export type AlertChannel = "telegram" | "feishu" | "webhook";
+
+export interface AlertConfig {
+  enabled: boolean;
+  channel: AlertChannel;
+  webhookUrl: string;
+  telegramToken: string;
+  telegramChatId: string;
+  trafficWarnPct: number;
+  expireWarnDays: number;
+  notifyOffline: boolean;
+  notifyEdgeDown: boolean;
+}
+
 export interface SettingsDto {
   siteTitle: string;
   siteDomain: string;
   publicAccess: PublicAccessMode;
   displayCurrency: CurrencyCode;
+  alerts?: AlertConfig;
 }
 
 export interface BootstrapResponse {
@@ -137,6 +164,7 @@ export interface BootstrapResponse {
   authenticated: boolean;
   requiresAuth?: boolean;
   serverTime: number;
+  serverMode?: string;
   nodes: NodeDto[];
   probeTargets: ProbeTargetDto[];
   edgeProbeHistory: Record<string, EdgeProbeRecord[]>;
@@ -148,6 +176,8 @@ export interface AgentReportPayload {
   os?: string;
   arch?: string;
   kernel?: string;
+  agentVersion?: string;
+  netIface?: string;
   cpuModel?: string;
   cpuCores?: number;
   memTotal?: number;
