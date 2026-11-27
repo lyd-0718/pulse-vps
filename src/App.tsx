@@ -819,7 +819,11 @@ export function App() {
                     </div>
                   </div>
                 ) : viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+                  <div
+                    className={`grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 ${
+                      filteredNodes.length >= 4 ? "2xl:grid-cols-4" : ""
+                    }`}
+                  >
                     {filteredNodes.map((node) => (
                       <NodeCard
                         key={node.id}

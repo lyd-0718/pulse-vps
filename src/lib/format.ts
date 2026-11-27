@@ -23,6 +23,31 @@ export function formatSpeed(bytesPerSec: number): string {
   return `${val.toFixed(i === 0 ? 0 : val >= 100 ? 0 : 1)} ${units[i]}`;
 }
 
+export function formatSpeedBits(bytesPerSec: number): string {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return "0 bps";
+  const bitsPerSec = bytesPerSec * 8;
+  const units = ["bps", "Kbps", "Mbps", "Gbps"];
+  const k = 1000;
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bitsPerSec) / Math.log(k)));
+  const val = bitsPerSec / Math.pow(k, i);
+  return `${val.toFixed(i === 0 ? 0 : val >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
+export function computeRemainingValue(
+  price: number,
+  cycle: BillingCycle,
+  expireDate: string,
+): number | null {
+  if (!Number.isFinite(price) || price <= 0) return null;
+  const remain = daysUntil(expireDate);
+  if (remain === null) return null;
+  if (remain <= 0) return 0;
+  const cycleDays =
+    cycle === "annual" ? 365 : cycle === "semiannual" ? 182.5 : cycle === "quarterly" ? 91.25 : 30.4375;
+  const ratio = Math.min(1, remain / cycleDays);
+  return price * ratio;
+}
+
 export function formatUptime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0m";
   const days = Math.floor(seconds / 86400);
