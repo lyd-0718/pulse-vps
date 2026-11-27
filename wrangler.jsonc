@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vps-monitor",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-04-01",
+  "routes": [
+    {
+      "pattern": "vps.ydiws.xyz",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vps-monitor-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "AGENT_DOWNLOAD_BASE": "https://github.com/lyd-0718/pulse-vps/releases/latest/download"
+  },
+  "triggers": {
+    "crons": ["*/2 * * * *"]
+  }
+}

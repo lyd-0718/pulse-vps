@@ -1,0 +1,35 @@
+{
+  "name": "pulse-vps-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "vite build",
+    "db:migrate:local": "wrangler d1 migrations apply vps-monitor-db --local --force",
+    "dev:worker": "wrangler dev --port 8787 --ip 127.0.0.1",
+    "dev:web": "vite --port 5173",
+    "build": "vite build && bash scripts/build-agent.sh",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
+    "agent:build": "bash scripts/build-agent.sh",
+    "cf:deploy": "bash scripts/deploy-cf.sh"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "hono": "^4.10.3",
+    "lucide-react": "^0.553.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.4.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251115.0",
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "tailwindcss": "^4.1.17",
+    "typescript": "^5.9.3",
+    "vite": "^8.4.0",
+    "wrangler": "^4.48.0"
+  }
+}
