@@ -332,7 +332,7 @@ export function BillingView({
                       {formatCurrency(monthly, displayCurrency)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3.5 apple-nums text-[#4c515c]">
-                      {formatBytes(node.trafficUsedBytes, 0)} / {node.trafficLimitGb} GB
+                      {formatBytes(node.trafficUsedBytes, 1, node.trafficUnitBase === 1000 ? 1000 : 1024)} / {node.trafficLimitGb} GB
                     </td>
                     <td className="whitespace-nowrap px-3 py-3.5 apple-nums">
                       {node.expireDate ? (

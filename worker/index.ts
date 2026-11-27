@@ -9,11 +9,13 @@ import type {
   HistoryPoint,
   NodeDto,
   NodeProbeResult,
+  NodeUpsertPayload,
   ProbeTargetDto,
   PublicAccessMode,
   SettingsDto,
   SparkPoint,
   TrafficMode,
+  TrafficUnitBase,
 } from "../shared/types";
 import {
   extractBearerToken,
@@ -55,14 +57,19 @@ function maskIp(ip: string): string {
   return "***.***.***";
 }
 
+function daysInMonthUtc(year: number, month1Based: number): number {
+  return new Date(Date.UTC(year, month1Based, 0)).getUTCDate();
+}
+
 function computeCycleKey(nowMs: number, resetDay: number): string {
-  const safeDay = Math.min(28, Math.max(1, resetDay || 1));
-  // Align cycle boundary to UTC+8 midnight for predictable monthly resets
+  const safeDay = Math.min(31, Math.max(1, Math.round(resetDay || 1)));
+  // Align cycle boundary to UTC+8 midnight; clamp 29-31 to the month's last day in shorter months
   const d = new Date(nowMs + 8 * 3600_000);
   let year = d.getUTCFullYear();
   let month = d.getUTCMonth() + 1;
   const day = d.getUTCDate();
-  if (day < safeDay) {
+  const effectiveResetDay = Math.min(safeDay, daysInMonthUtc(year, month));
+  if (day < effectiveResetDay) {
     month -= 1;
     if (month < 1) {
       month = 12;
@@ -70,6 +77,13 @@ function computeCycleKey(nowMs: number, resetDay: number): string {
     }
   }
   return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function normalizeUnitBase(val: unknown, fallback: TrafficUnitBase = 1024): TrafficUnitBase {
+  const num = Number(val);
+  if (num === 1000) return 1000;
+  if (num === 1024) return 1024;
+  return fallback;
 }
 
 function computeTrafficUsed(rx: number, tx: number, mode: string): number {
@@ -125,6 +139,7 @@ function mapNodeRow(row: NodeRow, serverTime: number, maskPrivate: boolean): Nod
     sparkline,
     trafficLimitGb: row.traffic_limit_gb,
     trafficMode: (row.traffic_mode || "both") as TrafficMode,
+    trafficUnitBase: normalizeUnitBase(row.traffic_unit_base, 1024),
     trafficResetDay: row.traffic_reset_day,
     trafficCycleKey: row.traffic_cycle_key,
     trafficRxCycle: row.traffic_rx_cycle,
@@ -314,7 +329,7 @@ app.post("/api/nodes", async (c) => {
   if (!(await isAdminRequest(c.req.header("Authorization"), c.env))) {
     return c.json({ error: "需要管理员权限" }, 401);
   }
-  const body = await c.req.json<Partial<NodeDto>>().catch(() => ({} as Partial<NodeDto>));
+  const body = await c.req.json<NodeUpsertPayload>().catch(() => ({} as NodeUpsertPayload));
   if (!body.name?.trim()) {
     return c.json({ error: "节点名称不能为空" }, 400);
   }
@@ -324,15 +339,16 @@ app.post("/api/nodes", async (c) => {
   const tokenHash = await hashToken(rawToken);
   const tokenHint = rawToken.slice(0, 6);
   const now = Date.now();
-  const resetDay = Math.min(28, Math.max(1, Number(body.trafficResetDay || 1)));
+  const resetDay = Math.min(31, Math.max(1, Math.round(Number(body.trafficResetDay || 1))));
+  const unitBase = normalizeUnitBase(body.trafficUnitBase, 1024);
   const cycleKey = computeCycleKey(now, resetDay);
 
   await c.env.DB.prepare(
     `INSERT INTO nodes (
       id, name, token_hash, token_hint, region, flag, provider, tags_json, sort_order,
-      traffic_limit_gb, traffic_mode, traffic_reset_day, traffic_cycle_key,
+      traffic_limit_gb, traffic_mode, traffic_unit_base, traffic_reset_day, traffic_cycle_key,
       price, currency, billing_cycle, purchase_date, expire_date, auto_renew, notes, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -346,6 +362,7 @@ app.post("/api/nodes", async (c) => {
       Number(body.sortOrder || 0),
       Number(body.trafficLimitGb ?? 1000),
       body.trafficMode || "both",
+      unitBase,
       resetDay,
       cycleKey,
       Number(body.price ?? 0),
@@ -374,13 +391,42 @@ app.put("/api/nodes/:id", async (c) => {
   const existing = await c.env.DB.prepare("SELECT * FROM nodes WHERE id = ?").bind(id).first<NodeRow>();
   if (!existing) return c.json({ error: "节点不存在" }, 404);
 
-  const body = await c.req.json<Partial<NodeDto>>().catch(() => ({} as Partial<NodeDto>));
-  const resetDay = Math.min(28, Math.max(1, Number(body.trafficResetDay ?? existing.traffic_reset_day)));
+  const body = await c.req.json<NodeUpsertPayload>().catch(() => ({} as NodeUpsertPayload));
+  const resetDay = Math.min(31, Math.max(1, Math.round(Number(body.trafficResetDay ?? existing.traffic_reset_day))));
+  const unitBase = normalizeUnitBase(body.trafficUnitBase, normalizeUnitBase(existing.traffic_unit_base, 1024));
+
+  const now = Date.now();
+  const alignedCycleKey =
+    resetDay !== existing.traffic_reset_day ||
+    body.calibrateRxGb !== undefined ||
+    body.calibrateTxGb !== undefined
+      ? computeCycleKey(now, resetDay)
+      : existing.traffic_cycle_key;
+
+  let nextRxCycle = existing.traffic_rx_cycle;
+  let nextTxCycle = existing.traffic_tx_cycle;
+  const gbBytes = unitBase ** 3;
+
+  if (body.calibrateRxGb !== undefined) {
+    const rxGb = Number(body.calibrateRxGb);
+    if (!Number.isFinite(rxGb) || rxGb < 0 || rxGb > 1_000_000) {
+      return c.json({ error: "校准入站流量需为 0 ~ 1,000,000 GB 之间的有效数字" }, 400);
+    }
+    nextRxCycle = Math.round(rxGb * gbBytes);
+  }
+  if (body.calibrateTxGb !== undefined) {
+    const txGb = Number(body.calibrateTxGb);
+    if (!Number.isFinite(txGb) || txGb < 0 || txGb > 1_000_000) {
+      return c.json({ error: "校准出站流量需为 0 ~ 1,000,000 GB 之间的有效数字" }, 400);
+    }
+    nextTxCycle = Math.round(txGb * gbBytes);
+  }
 
   await c.env.DB.prepare(
     `UPDATE nodes SET
       name = ?, region = ?, flag = ?, provider = ?, tags_json = ?, sort_order = ?,
-      traffic_limit_gb = ?, traffic_mode = ?, traffic_reset_day = ?,
+      traffic_limit_gb = ?, traffic_mode = ?, traffic_unit_base = ?, traffic_reset_day = ?,
+      traffic_cycle_key = ?, traffic_rx_cycle = ?, traffic_tx_cycle = ?,
       price = ?, currency = ?, billing_cycle = ?, purchase_date = ?, expire_date = ?, auto_renew = ?, notes = ?
     WHERE id = ?`,
   )
@@ -393,7 +439,11 @@ app.put("/api/nodes/:id", async (c) => {
       body.sortOrder ?? existing.sort_order,
       body.trafficLimitGb ?? existing.traffic_limit_gb,
       body.trafficMode ?? existing.traffic_mode,
+      unitBase,
       resetDay,
+      alignedCycleKey,
+      nextRxCycle,
+      nextTxCycle,
       body.price ?? existing.price,
       body.currency ?? existing.currency,
       body.billingCycle ?? existing.billing_cycle,
@@ -406,7 +456,7 @@ app.put("/api/nodes/:id", async (c) => {
     .run();
 
   const updated = await c.env.DB.prepare("SELECT * FROM nodes WHERE id = ?").bind(id).first<NodeRow>();
-  return c.json({ node: updated ? mapNodeRow(updated, Date.now(), false) : null });
+  return c.json({ node: updated ? mapNodeRow(updated, now, false) : null });
 });
 
 app.post("/api/nodes/:id/rotate-token", async (c) => {

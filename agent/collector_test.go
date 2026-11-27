@@ -10,11 +10,27 @@ import (
 )
 
 func TestIsCountedIface(t *testing.T) {
-	if isCountedIface("lo") || isCountedIface("lo0") || isCountedIface("docker0") || isCountedIface("veth1234") {
-		t.Fatal("expected loopback and virtual bridge interfaces to be ignored")
+	for _, ignored := range []string{"lo", "lo0", "docker0", "veth1234", "wg0", "tun0", "tap0", "tailscale0", "warp0", "zt123"} {
+		if isCountedIface(ignored) {
+			t.Fatalf("expected virtual/tunnel interface %q to be ignored", ignored)
+		}
 	}
-	if !isCountedIface("eth0") || !isCountedIface("ens3") || !isCountedIface("en0") {
-		t.Fatal("expected physical interfaces to be counted")
+	for _, kept := range []string{"eth0", "ens3", "enp1s0", "en0"} {
+		if !isCountedIface(kept) {
+			t.Fatalf("expected physical interface %q to be counted", kept)
+		}
+	}
+}
+
+func TestParseDefaultRouteIface(t *testing.T) {
+	sample := `Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
+wg0	00000000	00000000	0001	0	0	10	00000000	0	0	0
+eth0	00000000	0101A8C0	0003	0	0	100	00000000	0	0	0
+ens3	00000000	0101A8C0	0003	0	0	50	00000000	0	0	0
+docker0	000011AC	00000000	0001	0	0	0	0000FFFF	0	0	0`
+	got := parseDefaultRouteIface(sample)
+	if got != "ens3" {
+		t.Fatalf("expected default physical route iface ens3, got %q", got)
 	}
 }
 
@@ -79,7 +95,7 @@ func TestRunProbesTCPAndHTTP(t *testing.T) {
 }
 
 func TestCollectorCollect(t *testing.T) {
-	c := NewCollector("/nonexistent/docker.sock")
+	c := NewCollector("/nonexistent/docker.sock", "")
 	time.Sleep(150 * time.Millisecond)
 	p := c.Collect(context.Background(), nil)
 	if p.MemTotal == 0 || p.CPUCores == 0 || p.DiskTotal == 0 {

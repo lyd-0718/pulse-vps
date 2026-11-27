@@ -14,6 +14,7 @@ import type {
   BootstrapResponse,
   CurrencyCode,
   NodeDto,
+  NodeUpsertPayload,
   ProbeTargetDto,
   ProbeType,
   SettingsDto,
@@ -28,6 +29,7 @@ import {
   formatRelativeTime,
   formatSpeed,
   formatUptime,
+  gbToBytes,
   normalizeMonthlyAmount,
 } from "./lib/format";
 import { ConfirmDialog, type ConfirmDialogState } from "./components/AccessibleModal";
@@ -266,7 +268,7 @@ export function App() {
   const filteredNodes = useMemo(() => {
     return activeData.nodes.filter((n) => {
       const memPct = n.memTotal > 0 ? (n.memUsed / n.memTotal) * 100 : 0;
-      const trafficLimitBytes = n.trafficLimitGb * 1024 ** 3;
+      const trafficLimitBytes = gbToBytes(n.trafficLimitGb, n.trafficUnitBase);
       const trafficPct = trafficLimitBytes > 0 ? (n.trafficUsedBytes / trafficLimitBytes) * 100 : 0;
       const isWarn = n.online && (n.cpuUsage >= 85 || memPct >= 90 || trafficPct >= 85);
 
@@ -356,7 +358,7 @@ export function App() {
     showToast("已退出登录");
   };
 
-  const handleSaveNode = async (payload: Partial<NodeDto>, id?: string) => {
+  const handleSaveNode = async (payload: NodeUpsertPayload, id?: string) => {
     try {
       if (id) {
         await api.updateNode(id, payload);
@@ -979,7 +981,8 @@ export function App() {
                         {filteredNodes.map((n) => {
                           const memPct = n.memTotal > 0 ? (n.memUsed / n.memTotal) * 100 : 0;
                           const diskPct = n.diskTotal > 0 ? (n.diskUsed / n.diskTotal) * 100 : 0;
-                          const limitBytes = n.trafficLimitGb * 1024 ** 3;
+                          const unitBase = n.trafficUnitBase === 1000 ? 1000 : 1024;
+                          const limitBytes = gbToBytes(n.trafficLimitGb, unitBase);
                           const tPct = limitBytes > 0 ? (n.trafficUsedBytes / limitBytes) * 100 : 0;
                           const warn = n.online && (n.cpuUsage >= 85 || memPct >= 90 || tPct >= 85);
                           const dotColor = !n.online ? "#FF3B30" : warn ? "#FF9500" : "#34C759";
@@ -1026,7 +1029,7 @@ export function App() {
                                 ↓ {formatSpeed(n.netRxSpeed)} · ↑ {formatSpeed(n.netTxSpeed)}
                               </td>
                               <td className="whitespace-nowrap px-4 py-3.5 text-right apple-nums text-[#4c515c]">
-                                {formatBytes(n.trafficUsedBytes, 0)} / {n.trafficLimitGb} GB
+                                {formatBytes(n.trafficUsedBytes, 1, unitBase)} / {n.trafficLimitGb} GB
                               </td>
                               <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono-num text-[#4c515c]">
                                 {n.online ? formatUptime(n.uptime) : "—"}

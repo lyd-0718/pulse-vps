@@ -7,6 +7,7 @@ import {
   formatRelativeTime,
   formatSpeed,
   formatUptime,
+  gbToBytes,
 } from "../lib/format";
 import { PrecisionTunerBar } from "./PrecisionTunerBar";
 import { RingGauge } from "./RingGauge";
@@ -23,9 +24,10 @@ type CardPanelMode = "metrics" | "containers" | "probes";
 export function NodeCard({ node, demoMode, onSelect }: NodeCardProps) {
   const [panelMode, setPanelMode] = useState<CardPanelMode>("metrics");
 
+  const unitBase = node.trafficUnitBase === 1000 ? 1000 : 1024;
   const memPct = node.memTotal > 0 ? (node.memUsed / node.memTotal) * 100 : 0;
   const diskPct = node.diskTotal > 0 ? (node.diskUsed / node.diskTotal) * 100 : 0;
-  const trafficLimitBytes = node.trafficLimitGb * 1024 ** 3;
+  const trafficLimitBytes = gbToBytes(node.trafficLimitGb, unitBase);
   const trafficPct = trafficLimitBytes > 0 ? Math.min(100, (node.trafficUsedBytes / trafficLimitBytes) * 100) : 0;
   const rxShare =
     trafficLimitBytes > 0 ? Math.min(100, (node.trafficRxCycle / trafficLimitBytes) * 100) : 0;
@@ -247,7 +249,7 @@ export function NodeCard({ node, demoMode, onSelect }: NodeCardProps) {
               <span className="ml-1.5 text-[11.5px] text-[#555a66]">(每月 {node.trafficResetDay} 日重置)</span>
             </span>
             <span className="apple-nums font-medium text-[#1d1d1f]">
-              {formatBytes(node.trafficUsedBytes, 0)}
+              {formatBytes(node.trafficUsedBytes, 1, unitBase)}
               <span className="text-[#555a66]"> / {node.trafficLimitGb} GB</span>
               <span
                 className={`ml-1.5 ${
@@ -264,6 +266,7 @@ export function NodeCard({ node, demoMode, onSelect }: NodeCardProps) {
             rxBytes={node.trafficRxCycle}
             txBytes={node.trafficTxCycle}
             limitGb={node.trafficLimitGb}
+            unitBase={unitBase}
             warning={trafficPct >= 85}
           />
         </div>

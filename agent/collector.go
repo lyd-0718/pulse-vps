@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +24,7 @@ import (
 type Collector struct {
 	mu               sync.Mutex
 	dockerSock       string
+	netIface         string
 	prevRx           uint64
 	prevTx           uint64
 	prevAt           time.Time
@@ -31,11 +35,18 @@ type Collector struct {
 	lastIPAt         time.Time
 }
 
-func NewCollector(dockerSock string) *Collector {
-	c := &Collector{dockerSock: dockerSock}
+func NewCollector(dockerSock string, preferredIface string) *Collector {
+	iface := strings.TrimSpace(preferredIface)
+	if iface == "" && runtime.GOOS == "linux" {
+		iface = detectDefaultRouteIface()
+	}
+	c := &Collector{
+		dockerSock: dockerSock,
+		netIface:   iface,
+	}
 	// Prime CPU percent and network baseline counters.
 	_, _ = cpu.Percent(0, false)
-	if rx, tx, ok := readPhysicalNetBytes(context.Background()); ok {
+	if rx, tx, ok := readPhysicalNetBytes(context.Background(), c.netIface); ok {
 		c.prevRx = rx
 		c.prevTx = tx
 		c.prevAt = time.Now()
@@ -44,10 +55,73 @@ func NewCollector(dockerSock string) *Collector {
 	return c
 }
 
+func (c *Collector) SelectedIface() string {
+	if c.netIface != "" {
+		return c.netIface
+	}
+	return "auto-physical"
+}
+
+// parseDefaultRouteIface extracts the Linux default-gateway interface (e.g. eth0 / ens3)
+// from /proc/net/route text so tunnel/VPN virtual interfaces are never double-counted.
+func parseDefaultRouteIface(routeContent string) string {
+	scanner := bufio.NewScanner(strings.NewReader(routeContent))
+	firstLine := true
+	bestIface := ""
+	bestMetric := int(^uint(0) >> 1)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if firstLine {
+			firstLine = false
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 8 {
+			continue
+		}
+		iface := fields[0]
+		dest := fields[1]
+		flagsHex := fields[3]
+		metricStr := fields[6]
+		mask := fields[7]
+
+		if dest != "00000000" || mask != "00000000" {
+			continue
+		}
+		flags, err := strconv.ParseUint(flagsHex, 16, 32)
+		if err != nil || (flags&0x1) == 0 {
+			continue
+		}
+		if !isCountedIface(iface) {
+			continue
+		}
+		metric, err := strconv.Atoi(metricStr)
+		if err != nil {
+			metric = 0
+		}
+		if bestIface == "" || metric < bestMetric {
+			bestIface = iface
+			bestMetric = metric
+		}
+	}
+	return bestIface
+}
+
+func detectDefaultRouteIface() string {
+	raw, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return ""
+	}
+	return parseDefaultRouteIface(string(raw))
+}
+
 func isCountedIface(name string) bool {
 	lower := strings.ToLower(name)
 	ignoredPrefixes := []string{
-		"lo", "docker", "veth", "br-", "virbr", "cni", "flannel", "cali", "awdl", "llw", "utun", "anpi", "bridge", "gif", "stf",
+		"lo", "docker", "veth", "br-", "virbr", "cni", "flannel", "cali",
+		"wg", "tun", "tap", "tailscale", "warp", "sing", "zt", "sit", "gre", "ip6tnl", "dummy",
+		"awdl", "llw", "utun", "anpi", "bridge", "gif", "stf",
 	}
 	for _, prefix := range ignoredPrefixes {
 		if strings.HasPrefix(lower, prefix) {
@@ -57,10 +131,17 @@ func isCountedIface(name string) bool {
 	return true
 }
 
-func readPhysicalNetBytes(ctx context.Context) (uint64, uint64, bool) {
+func readPhysicalNetBytes(ctx context.Context, targetIface string) (uint64, uint64, bool) {
 	counters, err := gnet.IOCountersWithContext(ctx, true)
 	if err != nil {
 		return 0, 0, false
+	}
+	if targetIface != "" {
+		for _, item := range counters {
+			if item.Name == targetIface {
+				return item.BytesRecv, item.BytesSent, true
+			}
+		}
 	}
 	var rx, tx uint64
 	for _, item := range counters {
@@ -167,7 +248,7 @@ func (c *Collector) Collect(ctx context.Context, probes []NodeProbeResult) Agent
 	}
 
 	now := time.Now()
-	if rx, tx, ok := readPhysicalNetBytes(ctx); ok {
+	if rx, tx, ok := readPhysicalNetBytes(ctx, c.netIface); ok {
 		payload.NetRxTotal = rx
 		payload.NetTxTotal = tx
 		c.mu.Lock()

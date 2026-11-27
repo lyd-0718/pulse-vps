@@ -46,6 +46,7 @@ export interface NodeRow {
   sparkline_json: string;
   traffic_limit_gb: number;
   traffic_mode: string;
+  traffic_unit_base: number;
   traffic_reset_day: number;
   traffic_cycle_key: string;
   traffic_rx_cycle: number;

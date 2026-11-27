@@ -52,6 +52,7 @@ func main() {
 	token := flag.String("token", "", "Node authentication token")
 	interval := flag.Duration("interval", 15*time.Second, "Reporting interval")
 	dockerSock := flag.String("docker-sock", "/var/run/docker.sock", "Docker unix socket path")
+	netIface := flag.String("iface", "", "Network interface to monitor (auto-detects Linux default public route interface if empty)")
 	once := flag.Bool("once", false, "Collect once, send report, and exit")
 	flag.Parse()
 
@@ -62,7 +63,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	collector := NewCollector(*dockerSock)
+	collector := NewCollector(*dockerSock, *netIface)
+	log.Printf("pulse-vps-agent started (iface=%s, interval=%s)", collector.SelectedIface(), interval.String())
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 
 	// Brief warmup so CPU usage and network throughput rates have a valid delta on first report.

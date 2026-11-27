@@ -1,12 +1,17 @@
-import type { BillingCycle, CurrencyCode } from "../../shared/types";
+import type { BillingCycle, CurrencyCode, TrafficUnitBase } from "../../shared/types";
 
-export function formatBytes(bytes: number, decimals = 1): string {
+export function formatBytes(bytes: number, decimals = 1, base: TrafficUnitBase = 1024): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const k = 1024;
+  const k = base === 1000 ? 1000 : 1024;
   const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
   const val = bytes / Math.pow(k, i);
   return `${val.toFixed(i === 0 ? 0 : decimals)} ${units[i]}`;
+}
+
+export function gbToBytes(gb: number, base: TrafficUnitBase = 1024): number {
+  const k = base === 1000 ? 1000 : 1024;
+  return gb * k ** 3;
 }
 
 export function formatSpeed(bytesPerSec: number): string {

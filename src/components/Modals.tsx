@@ -4,10 +4,12 @@ import type {
   BillingCycle,
   CurrencyCode,
   NodeDto,
+  NodeUpsertPayload,
   ProbeType,
   PublicAccessMode,
   SettingsDto,
   TrafficMode,
+  TrafficUnitBase,
 } from "../../shared/types";
 import type { ShaderPreset } from "./AmbientShader";
 import { AccessibleModal } from "./AccessibleModal";
@@ -250,9 +252,11 @@ export function NodeFormModal({
   open: boolean;
   editing: NodeDto | null;
   onClose: () => void;
-  onSave: (payload: Partial<NodeDto>, id?: string) => Promise<void>;
+  onSave: (payload: NodeUpsertPayload, id?: string) => Promise<void>;
 }) {
   const titleId = useId();
+  const initBase: TrafficUnitBase = editing?.trafficUnitBase === 1000 ? 1000 : 1024;
+  const initGbDiv = initBase ** 3;
   const [name, setName] = useState(editing?.name ?? "");
   const [flag, setFlag] = useState(editing?.flag ?? "🇭🇰");
   const [region, setRegion] = useState(editing?.region ?? "香港");
@@ -260,7 +264,15 @@ export function NodeFormModal({
   const [tagsRaw, setTagsRaw] = useState((editing?.tags ?? []).join(", "));
   const [trafficLimitGb, setTrafficLimitGb] = useState(String(editing?.trafficLimitGb ?? 1000));
   const [trafficMode, setTrafficMode] = useState<TrafficMode>(editing?.trafficMode ?? "both");
+  const [trafficUnitBase, setTrafficUnitBase] = useState<TrafficUnitBase>(initBase);
   const [trafficResetDay, setTrafficResetDay] = useState(String(editing?.trafficResetDay ?? 1));
+  const [enableCalibrate, setEnableCalibrate] = useState(false);
+  const [calibrateRxGb, setCalibrateRxGb] = useState(
+    editing ? (editing.trafficRxCycle / initGbDiv).toFixed(2) : "0",
+  );
+  const [calibrateTxGb, setCalibrateTxGb] = useState(
+    editing ? (editing.trafficTxCycle / initGbDiv).toFixed(2) : "0",
+  );
   const [price, setPrice] = useState(String(editing?.price ?? 0));
   const [currency, setCurrency] = useState<CurrencyCode>(editing?.currency ?? "USD");
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(editing?.billingCycle ?? "monthly");
@@ -285,13 +297,24 @@ export function NodeFormModal({
       setError("月流量配额必须大于 0 GB");
       return;
     }
-    if (!Number.isInteger(resetNum) || resetNum < 1 || resetNum > 28) {
-      setError("每月重置日需在 1–28 之间");
+    if (!Number.isInteger(resetNum) || resetNum < 1 || resetNum > 31) {
+      setError("每月重置日需在 1–31 之间");
       return;
     }
     if (!Number.isFinite(priceNum) || priceNum < 0) {
       setError("续费价格不能为负数");
       return;
+    }
+
+    let calRx: number | undefined;
+    let calTx: number | undefined;
+    if (editing && enableCalibrate) {
+      calRx = Number(calibrateRxGb);
+      calTx = Number(calibrateTxGb);
+      if (!Number.isFinite(calRx) || calRx < 0 || !Number.isFinite(calTx) || calTx < 0) {
+        setError("校准流量必须为大于或等于 0 的有效数字");
+        return;
+      }
     }
 
     setBusy(true);
@@ -308,7 +331,10 @@ export function NodeFormModal({
             .filter(Boolean),
           trafficLimitGb: limitNum,
           trafficMode,
+          trafficUnitBase,
           trafficResetDay: resetNum,
+          ...(calRx !== undefined ? { calibrateRxGb: calRx } : {}),
+          ...(calTx !== undefined ? { calibrateTxGb: calTx } : {}),
           price: priceNum,
           currency,
           billingCycle,
@@ -389,10 +415,10 @@ export function NodeFormModal({
                 <input type="number" min={1} value={trafficLimitGb} onChange={(e) => setTrafficLimitGb(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
               </label>
               <label className="block">
-                <span className="text-[#4c515c]">每月重置日 (1-28)</span>
-                <input type="number" min={1} max={28} value={trafficResetDay} onChange={(e) => setTrafficResetDay(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
+                <span className="text-[#4c515c]">每月重置日 (1-31)</span>
+                <input type="number" min={1} max={31} value={trafficResetDay} onChange={(e) => setTrafficResetDay(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
               </label>
-              <label className="col-span-2 block">
+              <label className="block">
                 <span className="text-[#4c515c]">计费口径</span>
                 <select value={trafficMode} onChange={(e) => setTrafficMode(e.target.value as TrafficMode)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]">
                   <option value="both">双向累加 (Rx + Tx)</option>
@@ -400,6 +426,57 @@ export function NodeFormModal({
                   <option value="max">取最大值 max(Rx, Tx)</option>
                 </select>
               </label>
+              <label className="block">
+                <span className="text-[#4c515c]">流量进制</span>
+                <select
+                  value={trafficUnitBase}
+                  onChange={(e) => setTrafficUnitBase(Number(e.target.value) === 1000 ? 1000 : 1024)}
+                  className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]"
+                >
+                  <option value={1024}>1024 二进制 (GiB)</option>
+                  <option value={1000}>1000 十进制 (GB)</option>
+                </select>
+              </label>
+
+              {editing && (
+                <div className="col-span-2 border-t border-[#1d1d1f]/[0.07] pt-2.5">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={enableCalibrate}
+                      onChange={(e) => setEnableCalibrate(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <span className="font-medium text-[#1d1d1f]">校准本月已用流量（可选，对齐商家面板）</span>
+                  </label>
+                  {enableCalibrate && (
+                    <div className="mt-2.5 grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-[#4c515c]">已用入站 (GB)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={calibrateRxGb}
+                          onChange={(e) => setCalibrateRxGb(e.target.value)}
+                          className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[#4c515c]">已用出站 (GB)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={calibrateTxGb}
+                          onChange={(e) => setCalibrateTxGb(e.target.value)}
+                          className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </fieldset>
 

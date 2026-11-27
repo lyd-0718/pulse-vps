@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { TrafficUnitBase } from "../../shared/types";
 import { formatBytes } from "../lib/format";
 
 interface PrecisionTunerBarProps {
@@ -7,6 +8,7 @@ interface PrecisionTunerBarProps {
   rxBytes: number;
   txBytes: number;
   limitGb: number;
+  unitBase?: TrafficUnitBase;
   warning?: boolean;
 }
 
@@ -20,6 +22,7 @@ export function PrecisionTunerBar({
   rxBytes,
   txBytes,
   limitGb,
+  unitBase = 1024,
   warning = false,
 }: PrecisionTunerBarProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -44,7 +47,7 @@ export function PrecisionTunerBar({
           style={{ left: `${Math.min(82, Math.max(18, ((activeIdx + 0.5) / ticks) * 100))}%` }}
         >
           {activeIdx < activeCount
-            ? `入站 ${formatBytes(rxBytes, 0)} · 出站 ${formatBytes(txBytes, 0)}`
+            ? `入站 ${formatBytes(rxBytes, 1, unitBase)} · 出站 ${formatBytes(txBytes, 1, unitBase)}`
             : `刻度 ${inspectedGb} GB / ${limitGb} GB`}
         </div>
       )}
@@ -109,8 +112,8 @@ export function PrecisionTunerBar({
 
       {/* Always-visible compact Rx / Tx summary so touch & keyboard users never miss the split */}
       <div className="mt-1 flex items-center justify-between font-mono-num text-[11.5px] text-[#555a66]">
-        <span>入站 {formatBytes(rxBytes, 0)}</span>
-        <span>出站 {formatBytes(txBytes, 0)}</span>
+        <span>入站 {formatBytes(rxBytes, 1, unitBase)}</span>
+        <span>出站 {formatBytes(txBytes, 1, unitBase)}</span>
       </div>
     </div>
   );

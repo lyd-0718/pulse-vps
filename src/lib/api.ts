@@ -2,6 +2,7 @@ import type {
   BootstrapResponse,
   HistoryPoint,
   NodeDto,
+  NodeUpsertPayload,
   ProbeTargetDto,
   SettingsDto,
 } from "../../shared/types";
@@ -103,11 +104,11 @@ export function fetchNodeHistory(
   return request(`/api/nodes/${encodeURIComponent(nodeId)}/history?range=${range}`);
 }
 
-export function createNode(payload: Partial<NodeDto>): Promise<{ node: NodeDto; rawToken: string }> {
+export function createNode(payload: NodeUpsertPayload): Promise<{ node: NodeDto; rawToken: string }> {
   return request("/api/nodes", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export function updateNode(id: string, payload: Partial<NodeDto>): Promise<{ node: NodeDto }> {
+export function updateNode(id: string, payload: NodeUpsertPayload): Promise<{ node: NodeDto }> {
   return request(`/api/nodes/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 

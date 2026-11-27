@@ -1,5 +1,6 @@
 export type PublicAccessMode = "masked" | "private";
 export type TrafficMode = "both" | "tx" | "max";
+export type TrafficUnitBase = 1000 | 1024;
 export type BillingCycle = "monthly" | "quarterly" | "semiannual" | "annual";
 export type CurrencyCode = "CNY" | "USD" | "EUR";
 export type ProbeType = "http_edge" | "tcp_node" | "http_node";
@@ -75,6 +76,7 @@ export interface NodeDto {
 
   trafficLimitGb: number;
   trafficMode: TrafficMode;
+  trafficUnitBase: TrafficUnitBase;
   trafficResetDay: number;
   trafficCycleKey: string;
   trafficRxCycle: number;
@@ -88,6 +90,11 @@ export interface NodeDto {
   expireDate: string;
   autoRenew: boolean;
   notes: string;
+}
+
+export interface NodeUpsertPayload extends Partial<NodeDto> {
+  calibrateRxGb?: number;
+  calibrateTxGb?: number;
 }
 
 export interface HistoryPoint {
