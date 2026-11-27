@@ -17,7 +17,7 @@
     {
       "binding": "DB",
       "database_name": "vps-monitor-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "c6e16b4a-c8e5-4bef-b699-a5bb60b7d14a",
       "migrations_dir": "migrations"
     }
   ],
