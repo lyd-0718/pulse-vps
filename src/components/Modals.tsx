@@ -6,24 +6,14 @@ import type {
   NodeDto,
   NodeUpsertPayload,
   ProbeType,
-  PublicAccessMode,
-  SettingsDto,
   TrafficMode,
   TrafficUnitBase,
 } from "../../shared/types";
-import type { ShaderPreset } from "./AmbientShader";
 import { AccessibleModal } from "./AccessibleModal";
 import { ChipInput } from "./ui-moments/ChipInput";
 import { CopyMorphButton } from "./ui-moments/CopyMorphButton";
 import { InkSwitch } from "./ui-moments/InkSwitch";
 import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
-import { PlanPicker } from "./ui-moments/PlanPicker";
-
-const SHADER_OPTIONS: ReadonlyArray<{ id: ShaderPreset; label: string; desc: string; swatch: string }> = [
-  { id: "silk-mesh", label: "Silk Mesh", desc: "珠光天蓝丝绸", swatch: "linear-gradient(135deg,#c7d2fe,#fde6d2)" },
-  { id: "soft-dunes", label: "Soft Dunes", desc: "暖白香槟光晕", swatch: "linear-gradient(135deg,#f5d0c5,#f7efe5)" },
-  { id: "lagoon-mist", label: "Lagoon Mist", desc: "冰川湖蓝薄雾", swatch: "linear-gradient(135deg,#bae6fd,#ccebe3)" },
-];
 
 /* ---------- Login Modal ---------- */
 export function LoginModal({
@@ -660,151 +650,6 @@ export function ProbeModal({
           <button type="submit" disabled={busy} className="liquid-btn-primary min-h-[40px] rounded-full px-5 text-[13px] font-medium disabled:opacity-60">
             {busy ? "保存中..." : "添加"}
           </button>
-        </div>
-      </form>
-    </AccessibleModal>
-  );
-}
-
-/* ---------- Settings Modal (now also hosts serene Shader Backdrop selector) ---------- */
-export function SettingsModal({
-  open,
-  settings,
-  liveNodeCount,
-  shaderPreset,
-  canEditServerSettings,
-  onChangeShader,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  settings: SettingsDto;
-  liveNodeCount: number;
-  shaderPreset: ShaderPreset;
-  canEditServerSettings: boolean;
-  onChangeShader: (preset: ShaderPreset) => void;
-  onClose: () => void;
-  onSave: (payload: Partial<SettingsDto>) => Promise<void>;
-}) {
-  const titleId = useId();
-  const [siteTitle, setSiteTitle] = useState(settings.siteTitle);
-  const [siteDomain, setSiteDomain] = useState(settings.siteDomain);
-  const [publicAccess, setPublicAccess] = useState<PublicAccessMode>(settings.publicAccess);
-  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(settings.displayCurrency);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const estNodes = Math.max(1, liveNodeCount || 4);
-  const estRequestsDay = estNodes * 5760 + 720 + 200;
-  const estD1WritesDay = estNodes * (5760 + 1440) + 1440;
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEditServerSettings) {
-      onClose();
-      return;
-    }
-    setError("");
-    setBusy(true);
-    try {
-      await onSave({ siteTitle: siteTitle.trim() || "PulseVPS", siteDomain: siteDomain.trim(), publicAccess, displayCurrency });
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "保存偏好设置失败，请重试");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <AccessibleModal open={open} onClose={onClose} titleId={titleId}>
-      <form onSubmit={submit} className="liquid-sheet max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[26px] p-6">
-        <div className="flex items-center justify-between pb-4">
-          <h3 id={titleId} className="text-[17px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
-            偏好设置
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭设置窗口"
-            className="liquid-btn flex h-9 w-9 items-center justify-center rounded-full text-[#4c515c]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="space-y-4 text-[12.5px]">
-          {/* Local Appearance Setting (ui-moments PlanPicker) */}
-          <div>
-            <div className="mb-2 text-[12px] font-semibold text-[#1d1d1f]">浅色玻璃环境光场（本机生效）</div>
-            <PlanPicker
-              options={SHADER_OPTIONS}
-              value={shaderPreset}
-              onChange={onChangeShader}
-              legend="选择浅色玻璃环境光场"
-            />
-          </div>
-
-          {canEditServerSettings && (
-            <div className="space-y-3 border-t border-[#1d1d1f]/[0.08] pt-4">
-              <label className="block">
-                <span className="text-[#4c515c]">站点名称</span>
-                <input value={siteTitle} onChange={(e) => setSiteTitle(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]" />
-              </label>
-              <label className="block">
-                <span className="text-[#4c515c]">绑定域名</span>
-                <input value={siteDomain} onChange={(e) => setSiteDomain(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]" />
-              </label>
-              <label className="block">
-                <span className="text-[#4c515c]">访客权限</span>
-                <select value={publicAccess} onChange={(e) => setPublicAccess(e.target.value as PublicAccessMode)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]">
-                  <option value="masked">公开脱敏总览（隐藏真实 IP 与备注）</option>
-                  <option value="private">全站私密（需管理员登录）</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-[#4c515c]">默认货币</span>
-                <select value={displayCurrency} onChange={(e) => setDisplayCurrency(e.target.value as CurrencyCode)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]">
-                  <option value="CNY">CNY (¥)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                </select>
-              </label>
-            </div>
-          )}
-
-          <div className="liquid-inset rounded-[16px] p-3.5">
-            <div className="font-medium text-[#1d1d1f]">
-              Cloudflare 免费额度预估 ({estNodes} 台主机 · 15s 心跳)
-            </div>
-            <div className="mt-1.5 space-y-1 font-mono-num text-[11.5px] text-[#4c515c]">
-              <div className="flex justify-between">
-                <span>Workers 请求</span>
-                <span>~{estRequestsDay.toLocaleString()} / 100,000 ({((estRequestsDay / 100000) * 100).toFixed(1)}%)</span>
-              </div>
-              <div className="flex justify-between">
-                <span>D1 行写入</span>
-                <span>~{estD1WritesDay.toLocaleString()} / 100,000 ({((estD1WritesDay / 100000) * 100).toFixed(1)}%)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div role="alert" className="mt-3 rounded-[12px] bg-[#FF3B30]/10 px-3 py-2 text-[12.5px] font-medium text-[#c41e14]">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="liquid-btn min-h-[40px] rounded-full px-4 text-[13px] font-medium">
-            {canEditServerSettings ? "取消" : "完成"}
-          </button>
-          {canEditServerSettings && (
-            <button type="submit" disabled={busy} className="liquid-btn-primary min-h-[40px] rounded-full px-5 text-[13px] font-medium disabled:opacity-60">
-              {busy ? "保存中..." : "存储"}
-            </button>
-          )}
         </div>
       </form>
     </AccessibleModal>

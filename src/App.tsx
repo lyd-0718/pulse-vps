@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
   LayoutGrid,
   List,
   Lock,
@@ -39,11 +40,11 @@ import {
   LoginModal,
   NodeFormModal,
   ProbeModal,
-  SettingsModal,
 } from "./components/Modals";
 import { NodeCard } from "./components/NodeCard";
-import { NodeDetailDrawer } from "./components/NodeDetailDrawer";
+import { NodeDetailPage } from "./components/NodeDetailPage";
 import { ProbesView } from "./components/ProbesView";
+import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar, type TabId } from "./components/Sidebar";
 import { LeafSegmentedControl } from "./components/ui-moments/LeafSegmentedControl";
 import { RollingNumber } from "./components/ui-moments/RollingNumber";
@@ -62,6 +63,7 @@ const TAB_TITLES: Record<TabId, string> = {
   probes: "网络与拨测",
   containers: "容器进程",
   billing: "资产与账单",
+  settings: "偏好设置",
 };
 
 const STATUS_OPTIONS: ReadonlyArray<{ id: StatusFilter; label: string }> = [
@@ -105,7 +107,6 @@ export function App() {
   const [editingNode, setEditingNode] = useState<NodeDto | null>(null);
   const [installModal, setInstallModal] = useState<{ node: NodeDto; rawToken: string | null } | null>(null);
   const [probeModalOpen, setProbeModalOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmDialogState | null>(null);
   const [runningProbes, setRunningProbes] = useState(false);
   const [rotatingToken, setRotatingToken] = useState(false);
@@ -113,6 +114,18 @@ export function App() {
   const [toast, setToast] = useState<{ text: string; tone: "normal" | "error" } | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+
+  const navigateTab = useCallback((nextTab: TabId) => {
+    setSelectedNodeId(null);
+    setTab(nextTab);
+    mainScrollRef.current?.scrollTo({ top: 0 });
+  }, []);
+
+  const openNodePage = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    mainScrollRef.current?.scrollTo({ top: 0 });
+  }, []);
 
   const showToast = useCallback((text: string, tone: "normal" | "error" = "normal") => {
     if (toastTimerRef.current !== null) {
@@ -198,18 +211,18 @@ export function App() {
         loginOpen ||
         nodeFormOpen ||
         probeModalOpen ||
-        settingsOpen ||
         !!installModal ||
-        !!confirmState ||
-        !!selectedNodeId
+        !!confirmState
       ) {
         return;
       }
-      if (e.key === "1") setTab("overview");
-      else if (e.key === "2") setTab("probes");
-      else if (e.key === "3") setTab("containers");
-      else if (e.key === "4") setTab("billing");
-      else if (e.key === "/" && tab === "overview") {
+      if (e.key === "Escape" && selectedNodeId) {
+        setSelectedNodeId(null);
+      } else if (e.key === "1") navigateTab("overview");
+      else if (e.key === "2") navigateTab("probes");
+      else if (e.key === "3") navigateTab("containers");
+      else if (e.key === "4") navigateTab("billing");
+      else if (e.key === "/" && tab === "overview" && !selectedNodeId) {
         e.preventDefault();
         searchInputRef.current?.focus();
       } else if (e.key === "r") {
@@ -218,7 +231,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [loginOpen, nodeFormOpen, probeModalOpen, settingsOpen, installModal, confirmState, selectedNodeId, tab, loadLive]);
+  }, [loginOpen, nodeFormOpen, probeModalOpen, installModal, confirmState, selectedNodeId, tab, navigateTab, loadLive]);
 
   const activeData: BootstrapResponse = liveData ?? {
     settings: {
@@ -457,19 +470,19 @@ export function App() {
   const isAuthenticatedLive = Boolean(liveData?.authenticated);
 
   return (
-    <div className="relative flex min-h-screen w-full text-[#1d1d1f]">
+    <div className="relative flex h-dvh w-full overflow-hidden text-[#1d1d1f]">
       {/* Serene Stripe-Free WebGL Fluid Shader Backdrop */}
       <AmbientShader preset={shaderPreset} />
 
-      {/* Left Persistent Admin Console Sidebar (desktop collapsible, mobile slide-over drawer) */}
+      {/* Left Persistent Admin Console Sidebar (locked full height, never scrolls with main workspace) */}
       <Sidebar
         siteTitle={activeData.settings.siteTitle}
         siteDomain={activeData.settings.siteDomain}
         tab={tab}
-        onChangeTab={setTab}
+        onChangeTab={navigateTab}
         nodes={activeData.nodes}
         selectedNodeId={selectedNodeId}
-        onSelectNode={(id) => setSelectedNodeId(id)}
+        onSelectNode={openNodePage}
         probeCount={activeData.probeTargets.length}
         fleetDotColor={fleetDotColor}
         authenticated={isAuthenticatedLive}
@@ -477,7 +490,6 @@ export function App() {
         onToggleCollapse={toggleSidebarCollapsed}
         mobileOpen={mobileNavOpen}
         onCloseMobile={() => setMobileNavOpen(false)}
-        onOpenSettings={() => setSettingsOpen(true)}
         onOpenLogin={() => setLoginOpen(true)}
         onLogout={handleLogout}
         onAddNode={() => {
@@ -486,11 +498,11 @@ export function App() {
         }}
       />
 
-      {/* Right Full-Width Workspace */}
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        {/* Sticky Full-Width Console Topbar (h-14 aligns flush with sidebar brand header) */}
-        <header className="liquid-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 px-4 sm:px-6 lg:px-7">
-          <div className="flex min-w-0 items-center gap-3">
+      {/* Right Full-Width Locked Workspace Column */}
+      <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Pinned Console Topbar (h-14 aligns flush with sidebar brand header, never drifts on scroll) */}
+        <header className="liquid-topbar z-20 flex h-14 shrink-0 items-center justify-between gap-3 px-4 sm:px-6 lg:px-7">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
@@ -499,25 +511,46 @@ export function App() {
             >
               <Menu className="h-4.5 w-4.5" />
             </button>
-            <h1 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-[#1d1d1f] sm:text-[18px]">
-              {TAB_TITLES[tab]}
-            </h1>
-            <div className="hidden items-center gap-2 text-[12px] text-[#4c515c] md:flex">
-              <span className="h-3.5 w-[0.5px] bg-[#1d1d1f]/15" aria-hidden="true" />
-              <span className="apple-nums">
-                {onlineNodes} / {totalNodes} 在线
-              </span>
-              <span aria-hidden="true" className="text-[#9ca3af]">·</span>
-              <span className="apple-nums">本月 {formatBytes(totalMonthTraffic, 1)}</span>
-              {activeData.serverTime > 0 && (
-                <>
-                  <span aria-hidden="true" className="text-[#9ca3af]">·</span>
-                  <span className="apple-nums text-[#555a66]">
-                    同步于 {formatRelativeTime(activeData.serverTime)}
+
+            {selectedNode ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedNodeId(null)}
+                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium text-[#4c515c] transition hover:bg-white/75 hover:text-[#1d1d1f]"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{TAB_TITLES[tab]}</span>
+                </button>
+                <span aria-hidden="true" className="text-[#9ca3af]">/</span>
+                <span aria-hidden="true" className="text-[16px] leading-none">{selectedNode.flag || "🌐"}</span>
+                <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f] sm:text-[17px]">
+                  {selectedNode.name}
+                </h1>
+              </div>
+            ) : (
+              <>
+                <h1 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-[#1d1d1f] sm:text-[18px]">
+                  {TAB_TITLES[tab]}
+                </h1>
+                <div className="hidden items-center gap-2 text-[12px] text-[#4c515c] md:flex">
+                  <span className="h-3.5 w-[0.5px] bg-[#1d1d1f]/15" aria-hidden="true" />
+                  <span className="apple-nums">
+                    {onlineNodes} / {totalNodes} 在线
                   </span>
-                </>
-              )}
-            </div>
+                  <span aria-hidden="true" className="text-[#9ca3af]">·</span>
+                  <span className="apple-nums">本月 {formatBytes(totalMonthTraffic, 1)}</span>
+                  {activeData.serverTime > 0 && (
+                    <>
+                      <span aria-hidden="true" className="text-[#9ca3af]">·</span>
+                      <span className="apple-nums text-[#555a66]">
+                        同步于 {formatRelativeTime(activeData.serverTime)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -558,8 +591,11 @@ export function App() {
           </div>
         </header>
 
-        {/* Full-Width Workspace Content Canvas */}
-        <main className="flex-1 space-y-5 px-4 py-5 sm:px-6 lg:space-y-6 lg:px-7 lg:py-6">
+        {/* The ONLY Scrollable Pane (sidebar & topbar remain 100% locked!) */}
+        <main
+          ref={mainScrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-5 px-4 py-5 sm:px-6 lg:space-y-6 lg:px-7 lg:py-6"
+        >
         {liveError && (
           <div
             role="alert"
@@ -589,6 +625,17 @@ export function App() {
               立即登录
             </button>
           </div>
+        ) : selectedNode ? (
+          <NodeDetailPage
+            node={selectedNode}
+            authenticated={activeData.authenticated}
+            onEdit={(n) => {
+              setEditingNode(n);
+              setNodeFormOpen(true);
+            }}
+            onInstallCmd={(n) => setInstallModal({ node: n, rawToken: null })}
+            onDelete={requestDeleteNode}
+          />
         ) : (
           <>
             {tab === "overview" && (
@@ -777,7 +824,7 @@ export function App() {
                       <NodeCard
                         key={node.id}
                         node={node}
-                        onSelect={(n) => setSelectedNodeId(n.id)}
+                        onSelect={(n) => openNodePage(n.id)}
                       />
                     ))}
                   </div>
@@ -815,7 +862,7 @@ export function App() {
                           return (
                             <tr
                               key={n.id}
-                              onClick={() => setSelectedNodeId(n.id)}
+                              onClick={() => openNodePage(n.id)}
                               className="cursor-pointer transition hover:bg-white/50"
                             >
                               <td className="whitespace-nowrap px-4 py-3.5 font-semibold text-[#1d1d1f]">
@@ -873,14 +920,14 @@ export function App() {
                 onRunNow={handleRunProbes}
                 onAddProbe={() => setProbeModalOpen(true)}
                 onRequestDeleteProbe={requestDeleteProbe}
-                onSelectNode={(id) => setSelectedNodeId(id)}
+                onSelectNode={openNodePage}
               />
             )}
 
             {tab === "containers" && (
               <ContainersView
                 nodes={activeData.nodes}
-                onSelectNode={(id) => setSelectedNodeId(id)}
+                onSelectNode={openNodePage}
               />
             )}
 
@@ -894,7 +941,19 @@ export function App() {
                   setEditingNode(n);
                   setNodeFormOpen(true);
                 }}
-                onSelectNode={(id) => setSelectedNodeId(id)}
+                onSelectNode={openNodePage}
+              />
+            )}
+
+            {tab === "settings" && (
+              <SettingsPage
+                settings={activeData.settings}
+                liveNodeCount={liveData?.nodes.length ?? 0}
+                shaderPreset={shaderPreset}
+                authenticated={isAuthenticatedLive}
+                onChangeShader={setShaderPreset}
+                onSave={handleSaveSettings}
+                onOpenLogin={() => setLoginOpen(true)}
               />
             )}
           </>
@@ -902,20 +961,7 @@ export function App() {
         </main>
       </div>
 
-      {/* Accessible Inspector Glass Sheet */}
-      <NodeDetailDrawer
-        node={selectedNode}
-        authenticated={activeData.authenticated}
-        onClose={() => setSelectedNodeId(null)}
-        onEdit={(n) => {
-          setEditingNode(n);
-          setNodeFormOpen(true);
-        }}
-        onInstallCmd={(n) => setInstallModal({ node: n, rawToken: null })}
-        onDelete={requestDeleteNode}
-      />
-
-      {/* Accessible Frosted Dialogs */}
+      {/* Accessible Frosted Dialogs (for brief forms & destructive confirmations only) */}
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
       <NodeFormModal
         key={editingNode?.id ?? "new"}
@@ -936,17 +982,6 @@ export function App() {
         open={probeModalOpen}
         onClose={() => setProbeModalOpen(false)}
         onSave={handleCreateProbe}
-      />
-      <SettingsModal
-        key={`${settingsOpen}-${activeData.settings.siteTitle}-${activeData.settings.publicAccess}`}
-        open={settingsOpen}
-        settings={activeData.settings}
-        liveNodeCount={liveData?.nodes.length ?? 0}
-        shaderPreset={shaderPreset}
-        canEditServerSettings={isAuthenticatedLive}
-        onChangeShader={setShaderPreset}
-        onClose={() => setSettingsOpen(false)}
-        onSave={handleSaveSettings}
       />
       <ConfirmDialog state={confirmState} onClose={() => setConfirmState(null)} />
 

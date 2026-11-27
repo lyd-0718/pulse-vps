@@ -296,7 +296,7 @@ export function ProbesView({
               多节点线路延迟矩阵
             </h2>
             <p className="mt-0.5 text-[12.5px] text-[#4c515c]">
-              各台 VPS 定时执行 TCPing 三次握手测速，支持按运营商筛选与多机横向对比，点击主机名展开详情
+              各台 VPS 定时执行 TCPing 三次握手测速，支持按运营商筛选与多机横向对比，点击主机名进入详情页
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

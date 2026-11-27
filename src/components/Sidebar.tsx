@@ -15,7 +15,7 @@ import {
 import type { NodeDto } from "../../shared/types";
 import { daysUntil } from "../lib/format";
 
-export type TabId = "overview" | "probes" | "containers" | "billing";
+export type TabId = "overview" | "probes" | "containers" | "billing" | "settings";
 
 interface SidebarProps {
   siteTitle: string;
@@ -32,14 +32,13 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-  onOpenSettings: () => void;
   onOpenLogin: () => void;
   onLogout: () => void;
   onAddNode: () => void;
 }
 
 const NAV_DEFS: ReadonlyArray<{
-  id: TabId;
+  id: Exclude<TabId, "settings">;
   label: string;
   shortcut: string;
   icon: typeof LayoutDashboard;
@@ -65,7 +64,6 @@ export function Sidebar({
   onToggleCollapse,
   mobileOpen,
   onCloseMobile,
-  onOpenSettings,
   onOpenLogin,
   onLogout,
   onAddNode,
@@ -97,10 +95,9 @@ export function Sidebar({
     return null;
   };
 
-  const activeIndex = Math.max(
-    0,
-    NAV_DEFS.findIndex((item) => item.id === tab),
-  );
+  const activeNavIndex =
+    selectedNodeId === null ? NAV_DEFS.findIndex((item) => item.id === tab) : -1;
+  const isSettingsActive = selectedNodeId === null && tab === "settings";
 
   const renderInner = (isCompact: boolean, isMobileDrawer: boolean) => (
     <div className="flex h-full flex-col">
@@ -159,14 +156,16 @@ export function Sidebar({
             <div className="mb-1.5 px-2.5 text-[11.5px] font-medium text-[#555a66]">控制台</div>
           )}
           <div className="relative flex flex-col gap-1">
-            <span
-              aria-hidden="true"
-              className="liquid-segment-thumb um-leaf-thumb pointer-events-none absolute right-0 left-0 h-[40px] rounded-[12px]"
-              style={{ transform: `translateY(${activeIndex * 44}px)` }}
-            />
+            {activeNavIndex >= 0 && (
+              <span
+                aria-hidden="true"
+                className="liquid-segment-thumb um-leaf-thumb pointer-events-none absolute right-0 left-0 h-[40px] rounded-[12px]"
+                style={{ transform: `translateY(${activeNavIndex * 44}px)` }}
+              />
+            )}
             {NAV_DEFS.map((item) => {
               const Icon = item.icon;
-              const active = tab === item.id;
+              const active = selectedNodeId === null && tab === item.id;
               const badge = badgeFor(item.id);
               return (
                 <button
@@ -268,7 +267,7 @@ export function Sidebar({
                       isCompact ? "justify-center px-0" : "justify-between gap-2 px-2.5 py-1.5"
                     } ${
                       selected
-                        ? "bg-white/90 font-semibold text-[#1d1d1f] shadow-[0_1px_4px_rgba(15,23,42,0.08)]"
+                        ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
                         : "text-[#4c515c] hover:bg-white/55 hover:text-[#1d1d1f]"
                     }`}
                   >
@@ -316,16 +315,24 @@ export function Sidebar({
       <div className="shrink-0 space-y-1 border-t border-[#1d1d1f]/[0.08] p-2.5">
         <button
           type="button"
+          aria-current={isSettingsActive ? "page" : undefined}
           onClick={() => {
-            onOpenSettings();
+            onChangeTab("settings");
             if (isMobileDrawer) onCloseMobile();
           }}
           title={isCompact ? "偏好设置与外观" : undefined}
-          className={`flex h-9 w-full items-center rounded-[11px] text-[12.5px] font-medium text-[#4c515c] transition hover:bg-white/65 hover:text-[#1d1d1f] ${
+          className={`flex h-9 w-full items-center rounded-[11px] text-[12.5px] transition ${
             isCompact ? "justify-center px-0" : "gap-2.5 px-2.5"
+          } ${
+            isSettingsActive
+              ? "liquid-segment-thumb font-semibold text-[#1d1d1f]"
+              : "font-medium text-[#4c515c] hover:bg-white/65 hover:text-[#1d1d1f]"
           }`}
         >
-          <Settings className="h-4 w-4 shrink-0 text-[#555a66]" aria-hidden="true" />
+          <Settings
+            className={`h-4 w-4 shrink-0 ${isSettingsActive ? "text-[#0058c4]" : "text-[#555a66]"}`}
+            aria-hidden="true"
+          />
           {!isCompact && <span>偏好设置</span>}
         </button>
 
@@ -373,10 +380,10 @@ export function Sidebar({
 
   return (
     <>
-      {/* Desktop Persistent Collapsible Sidebar */}
+      {/* Desktop Persistent Collapsible Sidebar (locked inside h-dvh app shell) */}
       <aside
         aria-label="后台导航侧边栏"
-        className={`liquid-sidebar sticky top-0 z-30 hidden h-screen shrink-0 flex-col transition-[width] duration-200 ease-out lg:flex ${
+        className={`liquid-sidebar z-30 hidden h-full shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out lg:flex ${
           collapsed ? "w-[72px]" : "w-[248px]"
         }`}
       >
