@@ -273,6 +273,7 @@ export function NodeFormModal({
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(editing?.billingCycle ?? "monthly");
   const [expireDate, setExpireDate] = useState(editing?.expireDate ?? "");
   const [autoRenew, setAutoRenew] = useState(editing?.autoRenew ?? false);
+  const [renewUrl, setRenewUrl] = useState(editing?.renewUrl ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -332,6 +333,7 @@ export function NodeFormModal({
           billingCycle,
           expireDate,
           autoRenew,
+          renewUrl: renewUrl.trim(),
           notes: notes.trim(),
         },
         editing?.id,
@@ -508,6 +510,16 @@ export function NodeFormModal({
                   label="自动续费"
                 />
               </div>
+              <label className="col-span-2 block">
+                <span className="text-[#4c515c]">续费 / 厂商官网直达链接</span>
+                <input
+                  type="url"
+                  value={renewUrl}
+                  onChange={(e) => setRenewUrl(e.target.value)}
+                  placeholder="https://666clouds.com/portal/services/..."
+                  className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 font-mono-num text-[16px] sm:text-[13px]"
+                />
+              </label>
               <label className="col-span-2 block">
                 <span className="text-[#4c515c]">备注</span>
                 <input value={notes} onChange={(e) => setNotes(e.target.value)} className="liquid-input mt-1 w-full rounded-[12px] px-3 py-2 text-[16px] sm:text-[13px]" />

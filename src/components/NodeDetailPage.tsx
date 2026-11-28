@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, Pencil, Terminal, Trash2 } from "lucide-react";
+import { AlertCircle, ExternalLink, Pencil, Terminal, Trash2 } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -199,6 +199,16 @@ export function NodeDetailPage({
 
           {authenticated && (
             <div className="flex flex-wrap items-center gap-2">
+              {node.renewUrl && /^https?:\/\//i.test(node.renewUrl) && (
+                <a
+                  href={node.renewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="liquid-btn inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium text-[#0058c4]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> 前往续费
+                </a>
+              )}
               <button
                 type="button"
                 onClick={() => onInstallCmd(node)}
@@ -576,6 +586,20 @@ export function NodeDetailPage({
                 )}
               </span>
             </div>
+            {node.renewUrl && /^https?:\/\//i.test(node.renewUrl) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <span className="text-[#4c515c]">厂商控制台</span>
+                <a
+                  href={node.renewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-[#0058c4] hover:underline"
+                >
+                  直达续费 / 官网
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+              </div>
+            )}
             {node.notes && (
               <div className="flex flex-wrap items-start justify-between gap-2 py-2.5">
                 <span className="text-[#4c515c]">备注</span>

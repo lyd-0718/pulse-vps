@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -41,6 +42,18 @@ func readJSON(r *http.Request, dst any) error {
 	defer r.Body.Close()
 	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 2<<20))
 	return dec.Decode(dst)
+}
+
+func sanitizeHTTPURL(raw string) (string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", true
+	}
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", false
+	}
+	return s, true
 }
 
 func (srv *Server) isAdmin(r *http.Request) bool {
@@ -247,6 +260,15 @@ func (srv *Server) routes() http.Handler {
 		if body.AutoRenew != nil && *body.AutoRenew {
 			autoRenew = 1
 		}
+		renewURL := ""
+		if body.RenewURL != nil {
+			clean, ok := sanitizeHTTPURL(*body.RenewURL)
+			if !ok {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "续费/官网链接必须以 http:// 或 https:// 开头"})
+				return
+			}
+			renewURL = clean
+		}
 		notes := ""
 		if body.Notes != nil {
 			notes = *body.Notes
@@ -256,11 +278,11 @@ func (srv *Server) routes() http.Handler {
 			`INSERT INTO nodes (
 				id, name, token_hash, token_hint, region, flag, provider, tags_json, sort_order,
 				traffic_limit_gb, traffic_mode, traffic_unit_base, traffic_reset_day, traffic_cycle_key,
-				price, currency, billing_cycle, purchase_date, expire_date, auto_renew, notes, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				price, currency, billing_cycle, purchase_date, expire_date, auto_renew, renew_url, notes, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id, strings.TrimSpace(*body.Name), tokenHash, tokenHint, region, flagEmoji, provider, string(tagsJSON), sortOrder,
 			limitGb, trafficMode, unitBase, resetDay, cycleKey,
-			price, currency, billingCycle, purchaseDate, expireDate, autoRenew, notes, now,
+			price, currency, billingCycle, purchaseDate, expireDate, autoRenew, renewURL, notes, now,
 		)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -389,6 +411,15 @@ func (srv *Server) routes() http.Handler {
 				autoRenew = 0
 			}
 		}
+		renewURL := existing.renewURL
+		if body.RenewURL != nil {
+			clean, ok := sanitizeHTTPURL(*body.RenewURL)
+			if !ok {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "续费/官网链接必须以 http:// 或 https:// 开头"})
+				return
+			}
+			renewURL = clean
+		}
 		notes := existing.notes
 		if body.Notes != nil {
 			notes = *body.Notes
@@ -399,12 +430,12 @@ func (srv *Server) routes() http.Handler {
 				name=?, region=?, flag=?, provider=?, tags_json=?, sort_order=?,
 				traffic_limit_gb=?, traffic_mode=?, traffic_unit_base=?, traffic_reset_day=?,
 				traffic_cycle_key=?, traffic_rx_cycle=?, traffic_tx_cycle=?,
-				price=?, currency=?, billing_cycle=?, purchase_date=?, expire_date=?, auto_renew=?, notes=?
+				price=?, currency=?, billing_cycle=?, purchase_date=?, expire_date=?, auto_renew=?, renew_url=?, notes=?
 			WHERE id = ?`,
 			name, region, flagEmoji, provider, tagsJSON, sortOrder,
 			limitGb, trafficMode, unitBase, resetDay,
 			alignedCycleKey, nextRx, nextTx,
-			price, currency, billingCycle, purchaseDate, expireDate, autoRenew, notes,
+			price, currency, billingCycle, purchaseDate, expireDate, autoRenew, renewURL, notes,
 			id,
 		)
 		if err != nil {

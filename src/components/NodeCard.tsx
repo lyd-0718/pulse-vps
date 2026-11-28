@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   CalendarDays,
   Cpu,
+  ExternalLink,
   HardDrive,
   MemoryStick,
   RefreshCw,
@@ -168,19 +169,34 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSpeedUnit((u) => (u === "bytes" ? "bits" : "bytes"));
-            }}
-            aria-label={`切换速率单位，当前 ${speedUnit === "bits" ? "Mbps" : "B/s"}`}
-            title="点击切换 B/s 与 bps 速率单位"
-            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[7px] border border-[#0f172a]/[0.08] bg-white/75 px-2 font-mono-num text-[10.5px] font-medium text-[#475569] shadow-[0_1px_1px_rgba(15,23,42,0.04)] transition hover:border-[#0058c4]/30 hover:bg-white hover:text-[#0058c4]"
-          >
-            <span>{speedUnit === "bits" ? "Mbps" : "MB/s"}</span>
-            <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {node.renewUrl && /^https?:\/\//i.test(node.renewUrl) && (
+              <a
+                href={node.renewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`直达 ${node.provider || node.name} 续费 / 控制台`}
+                className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[7px] border border-[#0058c4]/20 bg-[#007AFF]/[0.06] px-2 text-[10.5px] font-medium text-[#0058c4] transition hover:border-[#0058c4]/40 hover:bg-[#007AFF]/[0.12]"
+              >
+                <span>续费</span>
+                <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" />
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSpeedUnit((u) => (u === "bytes" ? "bits" : "bytes"));
+              }}
+              aria-label={`切换速率单位，当前 ${speedUnit === "bits" ? "Mbps" : "B/s"}`}
+              title="点击切换 B/s 与 bps 速率单位"
+              className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[7px] border border-[#0f172a]/[0.08] bg-white/75 px-2 font-mono-num text-[10.5px] font-medium text-[#475569] shadow-[0_1px_1px_rgba(15,23,42,0.04)] transition hover:border-[#0058c4]/30 hover:bg-white hover:text-[#0058c4]"
+            >
+              <span>{speedUnit === "bits" ? "Mbps" : "MB/s"}</span>
+              <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 

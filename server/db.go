@@ -125,6 +125,7 @@ func (s *Store) migrate() error {
 			purchase_date TEXT DEFAULT '',
 			expire_date TEXT DEFAULT '',
 			auto_renew INTEGER DEFAULT 0,
+			renew_url TEXT DEFAULT '',
 			notes TEXT DEFAULT '',
 			last_history_at INTEGER DEFAULT 0,
 			created_at INTEGER NOT NULL,
@@ -182,6 +183,7 @@ func (s *Store) migrate() error {
 		"ALTER TABLE nodes ADD COLUMN traffic_unit_base INTEGER NOT NULL DEFAULT 1024",
 		"ALTER TABLE nodes ADD COLUMN agent_version TEXT DEFAULT ''",
 		"ALTER TABLE nodes ADD COLUMN net_iface TEXT DEFAULT ''",
+		"ALTER TABLE nodes ADD COLUMN renew_url TEXT DEFAULT ''",
 		"ALTER TABLE metrics_history ADD COLUMN probes_json TEXT DEFAULT '{}'",
 	}
 	for _, q := range alterCols {
@@ -362,7 +364,7 @@ type nodeRow struct {
 	price                                                            float64
 	currency, billingCycle, purchaseDate, expireDate                 string
 	autoRenew                                                        int
-	notes                                                            string
+	renewURL, notes                                                  string
 	lastHistoryAt, createdAt                                         int64
 }
 
@@ -383,7 +385,7 @@ const nodeSelectCols = `
 	COALESCE(traffic_rx_cycle,0), COALESCE(traffic_tx_cycle,0),
 	COALESCE(last_raw_rx,0), COALESCE(last_raw_tx,0),
 	COALESCE(price,0), COALESCE(currency,'USD'), COALESCE(billing_cycle,'monthly'),
-	COALESCE(purchase_date,''), COALESCE(expire_date,''), COALESCE(auto_renew,0), COALESCE(notes,''),
+	COALESCE(purchase_date,''), COALESCE(expire_date,''), COALESCE(auto_renew,0), COALESCE(renew_url,''), COALESCE(notes,''),
 	COALESCE(last_history_at,0), created_at`
 
 func scanNodeRow(scanner interface{ Scan(dest ...any) error }) (nodeRow, error) {
@@ -405,7 +407,7 @@ func scanNodeRow(scanner interface{ Scan(dest ...any) error }) (nodeRow, error) 
 		&r.trafficRxCycle, &r.trafficTxCycle,
 		&r.lastRawRx, &r.lastRawTx,
 		&r.price, &r.currency, &r.billingCycle,
-		&r.purchaseDate, &r.expireDate, &r.autoRenew, &r.notes,
+		&r.purchaseDate, &r.expireDate, &r.autoRenew, &r.renewURL, &r.notes,
 		&r.lastHistoryAt, &r.createdAt,
 	)
 	return r, err
@@ -425,10 +427,12 @@ func mapNodeRow(r nodeRow, serverTime int64, maskPrivate bool) NodeDto {
 	ip := r.ip
 	ipv6 := r.ipv6
 	notes := r.notes
+	renewURL := r.renewURL
 	if maskPrivate {
 		ip = maskIP(ip)
 		ipv6 = maskIP(ipv6)
 		notes = ""
+		renewURL = ""
 	}
 	rxSpeed := 0.0
 	txSpeed := 0.0
@@ -490,6 +494,7 @@ func mapNodeRow(r nodeRow, serverTime int64, maskPrivate bool) NodeDto {
 		PurchaseDate:    r.purchaseDate,
 		ExpireDate:      r.expireDate,
 		AutoRenew:       r.autoRenew == 1,
+		RenewURL:        renewURL,
 		Notes:           notes,
 	}
 }

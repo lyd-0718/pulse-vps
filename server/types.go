@@ -80,6 +80,7 @@ type NodeDto struct {
 	PurchaseDate    string            `json:"purchaseDate"`
 	ExpireDate      string            `json:"expireDate"`
 	AutoRenew       bool              `json:"autoRenew"`
+	RenewURL        string            `json:"renewUrl,omitempty"`
 	Notes           string            `json:"notes"`
 }
 
@@ -102,6 +103,7 @@ type NodeUpsertPayload struct {
 	PurchaseDate    *string   `json:"purchaseDate"`
 	ExpireDate      *string   `json:"expireDate"`
 	AutoRenew       *bool     `json:"autoRenew"`
+	RenewURL        *string   `json:"renewUrl"`
 	Notes           *string   `json:"notes"`
 }
 

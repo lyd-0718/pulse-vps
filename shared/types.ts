@@ -91,6 +91,7 @@ export interface NodeDto {
   purchaseDate: string;
   expireDate: string;
   autoRenew: boolean;
+  renewUrl?: string;
   notes: string;
 }
 

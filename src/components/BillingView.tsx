@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpDown, Pencil } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Pencil } from "lucide-react";
 import type { CurrencyCode, NodeDto } from "../../shared/types";
 import {
   convertCurrency,
@@ -89,7 +89,7 @@ export function BillingView({
       {/* Top Bento: Apple Wallet Breakdown <-> Actionable Renewal & Expiry Queue */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         {/* Left 7 Cols: Spend Breakdown */}
-        <section className="liquid-glass flex flex-col justify-between rounded-[26px] p-5 sm:p-6 lg:col-span-7">
+        <section className="liquid-glass flex flex-col justify-between rounded-[16px] p-5 sm:p-6 lg:col-span-7">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-[13px] font-medium text-[#4c515c]">月度持有成本</h2>
@@ -177,7 +177,7 @@ export function BillingView({
         </section>
 
         {/* Right 5 Cols: Calm, Actionable Renewal & Expiry Reminder Panel */}
-        <aside className="liquid-glass flex flex-col justify-between rounded-[26px] p-5 sm:p-6 lg:col-span-5">
+        <aside className="liquid-glass flex flex-col justify-between rounded-[16px] p-5 sm:p-6 lg:col-span-5">
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">
@@ -193,22 +193,25 @@ export function BillingView({
                 {renewalQueue.map((item) => {
                   const urgent = item.days !== null && item.days <= 10;
                   const highlighted = hoveredNodeId === item.node.id;
+                  const hasRenew = Boolean(item.node.renewUrl && /^https?:\/\//i.test(item.node.renewUrl));
                   return (
-                    <button
+                    <div
                       key={item.node.id}
-                      type="button"
                       onMouseEnter={() => setHoveredNodeId(item.node.id)}
-                      onClick={() => onSelectNode(item.node.id)}
-                      className={`flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-left transition ${
+                      className={`flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl px-2 py-2 transition ${
                         highlighted ? "bg-white/70" : "hover:bg-white/45"
                       }`}
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#1d1d1f]">
+                      <button
+                        type="button"
+                        onClick={() => onSelectNode(item.node.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#111827]">
                           <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                           <span className="truncate">{item.node.name}</span>
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-[#555a66]">
+                        <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-[#556070]">
                           <span className="font-mono-num">{item.node.expireDate}</span>
                           <span
                             className={
@@ -216,23 +219,37 @@ export function BillingView({
                                 ? "font-medium text-[#156230]"
                                 : urgent
                                   ? "font-semibold text-[#9a4500]"
-                                  : "text-[#555a66]"
+                                  : "text-[#556070]"
                             }
                           >
                             {item.node.autoRenew ? "自动续费" : "需手动续费"}
                           </span>
                         </div>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span
+                          className={`apple-nums rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${
+                            urgent
+                              ? "bg-[#FF9500]/16 text-[#9a4500]"
+                              : "bg-white/75 text-[#4c5565]"
+                          }`}
+                        >
+                          {item.days !== null && item.days <= 0 ? "已到期" : `余 ${item.days} 天`}
+                        </span>
+                        {hasRenew && (
+                          <a
+                            href={item.node.renewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`前往 ${item.node.provider || item.node.name} 续费`}
+                            className="liquid-btn inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[11.5px] font-medium text-[#0058c4]"
+                          >
+                            <span>续费</span>
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        )}
                       </div>
-                      <span
-                        className={`apple-nums shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${
-                          urgent
-                            ? "bg-[#FF9500]/16 text-[#9a4500]"
-                            : "bg-white/75 text-[#4c515c]"
-                        }`}
-                      >
-                        {item.days !== null && item.days <= 0 ? "已到期" : `余 ${item.days} 天`}
-                      </span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -242,7 +259,7 @@ export function BillingView({
       </div>
 
       {/* Asset & Renewal Ledger directly inside Glass Surface */}
-      <section className="liquid-glass rounded-[26px] p-5 sm:p-6">
+      <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
@@ -353,14 +370,26 @@ export function BillingView({
                       </div>
                     </td>
                     {authenticated && (
-                      <td className="px-3 py-3.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => onEditNode(node)}
-                          className="liquid-btn inline-flex min-h-[34px] items-center gap-1 rounded-full px-3 text-[12px] font-medium"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-[#4c515c]" /> 编辑
-                        </button>
+                      <td className="whitespace-nowrap px-3 py-3.5 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          {node.renewUrl && /^https?:\/\//i.test(node.renewUrl) && (
+                            <a
+                              href={node.renewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="liquid-btn inline-flex min-h-[34px] items-center gap-1 rounded-full px-3 text-[12px] font-medium text-[#0058c4]"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" /> 续费
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onEditNode(node)}
+                            className="liquid-btn inline-flex min-h-[34px] items-center gap-1 rounded-full px-3 text-[12px] font-medium"
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-[#4c515c]" /> 编辑
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
