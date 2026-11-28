@@ -301,32 +301,32 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
       </div>
 
       {/* Row 3: Machined 3-Column Recessed Instrument Strip */}
-      <div className="liquid-inset grid grid-cols-3 divide-x divide-[#0f172a]/[0.07] rounded-[11px] py-2 text-[11.5px]">
-        <div className="min-w-0 space-y-0.5 px-2.5">
-          <div className="font-mono-num flex items-center gap-1 truncate font-medium text-[#156230]">
+      <div className="liquid-inset grid grid-cols-[1.12fr_0.94fr_0.94fr] divide-x divide-[#0f172a]/[0.07] rounded-[11px] py-2 text-[11px]">
+        <div className="min-w-0 space-y-0.5 px-2">
+          <div className="font-mono-num flex items-center gap-0.5 truncate font-medium text-[#156230]">
             <ArrowUp className="h-3 w-3 shrink-0" aria-hidden="true" />
             <span className="truncate">{fmtSpeed(node.netTxSpeed)}</span>
           </div>
-          <div className="font-mono-num flex items-center gap-1 truncate font-medium text-[#0058c4]">
+          <div className="font-mono-num flex items-center gap-0.5 truncate font-medium text-[#0058c4]">
             <ArrowDown className="h-3 w-3 shrink-0" aria-hidden="true" />
             <span className="truncate">{fmtSpeed(node.netRxSpeed)}</span>
           </div>
         </div>
 
-        <div className="min-w-0 space-y-0.5 px-2.5">
-          <div className="font-mono-num flex items-center gap-1 truncate font-medium text-[#111827]" title="本月已用出站">
+        <div className="min-w-0 space-y-0.5 px-2">
+          <div className="font-mono-num flex items-center gap-0.5 truncate font-medium text-[#111827]" title="本月已用出站">
             <ArrowUp className="h-3 w-3 shrink-0 text-[#64748b]" aria-hidden="true" />
             <span className="truncate">{formatBytes(node.trafficTxCycle, 1, unitBase)}</span>
           </div>
-          <div className="font-mono-num flex items-center gap-1 truncate text-[#4c5565]" title="本月已用入站">
+          <div className="font-mono-num flex items-center gap-0.5 truncate text-[#4c5565]" title="本月已用入站">
             <ArrowDown className="h-3 w-3 shrink-0 text-[#64748b]" aria-hidden="true" />
             <span className="truncate">{formatBytes(node.trafficRxCycle, 1, unitBase)}</span>
           </div>
         </div>
 
-        <div className="min-w-0 space-y-0.5 px-2.5">
+        <div className="min-w-0 space-y-0.5 px-2">
           <div
-            className={`apple-nums flex items-center gap-1 truncate ${
+            className={`apple-nums flex items-center gap-0.5 truncate ${
               expireDays !== null && expireDays <= 10
                 ? "font-semibold text-[#9a4500]"
                 : "font-medium text-[#111827]"
@@ -339,7 +339,7 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
             </span>
           </div>
           <div
-            className="font-mono-num flex items-center gap-1 truncate text-[#4c5565]"
+            className="font-mono-num flex items-center gap-0.5 truncate text-[#4c5565]"
             title="按剩余天数折算的当前周期剩余价值"
           >
             <Tag className="h-3 w-3 shrink-0 text-[#64748b]" aria-hidden="true" />
