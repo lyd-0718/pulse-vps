@@ -356,7 +356,7 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
             title={`每月 ${node.trafficResetDay} 日重置流量周期`}
           >
             <RefreshCw className="h-2.5 w-2.5 shrink-0 text-[#64748b]" aria-hidden="true" />
-            <span className="truncate">每月 {node.trafficResetDay} 日重置</span>
+            <span className="truncate">{node.trafficResetDay} 日重置</span>
           </div>
         </div>
       </div>
