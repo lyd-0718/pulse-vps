@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Eye,
+  EyeOff,
   LayoutGrid,
   List,
   Lock,
@@ -127,6 +129,7 @@ export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialRoute.nodeId);
   const [loginOpen, setLoginOpen] = useState(false);
   const [gatePassword, setGatePassword] = useState("");
+  const [gateShowPwd, setGateShowPwd] = useState(false);
   const [gateBusy, setGateBusy] = useState(false);
   const [gateError, setGateError] = useState("");
   const [nodeFormOpen, setNodeFormOpen] = useState(false);
@@ -583,6 +586,17 @@ export function App() {
     }
   };
 
+  const handleChangePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await api.changeAdminPassword(currentPassword, newPassword);
+      setWsReconnectSeq((n) => n + 1);
+      showToast("管理员密码已更新，其他设备会话已失效");
+    } catch (err) {
+      handleAdminError(err, "修改管理员密码失败");
+      throw err;
+    }
+  };
+
   const allOnline = totalNodes > 0 && onlineNodes === totalNodes;
   const fleetDotColor = totalNodes === 0 ? "#8e8e93" : allOnline ? "#34C759" : onlineNodes === 0 ? "#FF3B30" : "#FF9500";
   const isAuthenticatedLive = Boolean(liveData?.authenticated);
@@ -616,37 +630,45 @@ export function App() {
 
   if (liveData?.requiresAuth && !liveData.authenticated) {
     return (
-      <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden px-4 text-[#1d1d1f]">
+      <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden px-4 text-[#111827]">
         <AmbientShader preset={shaderPreset} />
-        <main className="liquid-glass relative z-10 w-full max-w-[380px] rounded-[28px] p-7 sm:p-8">
+        <main className="liquid-glass relative z-10 w-full max-w-[388px] rounded-[20px] p-7 sm:p-8">
           <div className="flex flex-col items-center text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white/85 text-[#0058c4] shadow-[0_0_0_0.5px_rgba(15,23,42,0.08),0_4px_14px_rgba(15,23,42,0.06)]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-[#0f172a]/[0.09] bg-white text-[#0058c4] shadow-[0_2px_6px_rgba(15,23,42,0.08),inset_0_1px_0_#ffffff]">
               <Lock className="h-5 w-5" aria-hidden="true" />
             </div>
-            <h1 className="mt-4 text-[20px] font-semibold tracking-[-0.025em] text-[#1d1d1f]">
+            <h1 className="mt-4 text-[20px] font-semibold tracking-[-0.025em] text-[#111827]">
               {activeData.settings.siteTitle || "PulseVPS"}
             </h1>
-            <p className="mt-1 text-[13px] text-[#4c515c]">
+            <p className="mt-1 text-[13px] text-[#4c5565]">
               私密监控控制台 · 请输入管理员密码继续
             </p>
           </div>
 
           <form onSubmit={handleGateLogin} className="mt-6 space-y-3.5">
-            <label className="block">
+            <label className="relative block">
               <span className="sr-only">管理员密码</span>
               <input
-                type="password"
+                type={gateShowPwd ? "text" : "password"}
                 autoFocus
                 autoComplete="current-password"
                 value={gatePassword}
                 onChange={(e) => setGatePassword(e.target.value)}
                 placeholder="输入管理员密码"
-                className="liquid-input min-h-[44px] w-full rounded-[14px] px-4 py-2.5 text-[15px] sm:text-[14px]"
+                className="liquid-input min-h-[44px] w-full rounded-[12px] py-2.5 pr-11 pl-4 text-[15px] sm:text-[14px]"
               />
+              <button
+                type="button"
+                onClick={() => setGateShowPwd((v) => !v)}
+                aria-label={gateShowPwd ? "隐藏密码" : "显示密码"}
+                className="absolute top-1/2 right-2.5 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#556070] transition hover:bg-[#0f172a]/[0.05] hover:text-[#111827]"
+              >
+                {gateShowPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </label>
 
             {gateError && (
-              <div role="alert" className="rounded-[12px] bg-[#ff3b30]/10 px-3.5 py-2 text-[12.5px] font-medium text-[#c41e14]">
+              <div role="alert" className="rounded-[10px] bg-[#dc2626]/10 px-3.5 py-2 text-[12.5px] font-medium text-[#b91c1c]">
                 {gateError}
               </div>
             )}
@@ -659,6 +681,10 @@ export function App() {
               {gateBusy ? "正在验证…" : "解锁控制台"}
             </button>
           </form>
+
+          <p className="mt-5 text-center text-[11.5px] text-[#556070]">
+            独立自托管 · 会话令牌加密保护
+          </p>
         </main>
       </div>
     );
@@ -840,34 +866,34 @@ export function App() {
           <>
             {tab === "overview" && (
               <>
-                {/* Full-Width Telemetry Ribbon with ui-moments RollingNumber */}
-                <section className="liquid-glass grid grid-cols-2 divide-y divide-[#1d1d1f]/[0.07] rounded-[24px] xl:grid-cols-4 xl:divide-x xl:divide-y-0">
+                {/* Full-Width Precision Telemetry Ribbon with ui-moments RollingNumber */}
+                <section className="liquid-glass grid grid-cols-2 divide-y divide-[#0f172a]/[0.07] rounded-[16px] xl:grid-cols-4 xl:divide-x xl:divide-y-0">
                   <div className="px-4 py-4 sm:px-5">
-                    <div className="whitespace-nowrap text-[12px] font-medium text-[#4c515c]">节点状态</div>
+                    <div className="whitespace-nowrap text-[12px] font-medium text-[#556070]">节点状态</div>
                     <div className="apple-nums mt-1.5 flex items-baseline gap-1.5 whitespace-nowrap">
                       <RollingNumber
                         value={String(onlineNodes)}
-                        className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]"
+                        className="text-[26px] font-semibold tracking-[-0.03em] text-[#111827] sm:text-[28px]"
                       />
-                      <span className="text-[13.5px] text-[#555a66]">/ {totalNodes} 在线</span>
+                      <span className="text-[13.5px] font-medium text-[#556070]">/ {totalNodes} 在线</span>
                     </div>
-                    <div className={`mt-0.5 text-[12px] ${!allOnline && totalNodes > 0 ? "font-medium text-[#c41e14]" : "text-[#555a66]"}`}>
+                    <div className={`mt-1 text-[12px] ${!allOnline && totalNodes > 0 ? "font-medium text-[#c41e14]" : "text-[#556070]"}`}>
                       {totalNodes === 0 ? "暂无节点" : allOnline ? "全部心跳正常" : `${totalNodes - onlineNodes} 台离线`}
                     </div>
                   </div>
 
-                  <div className="border-l border-[#1d1d1f]/[0.07] px-4 py-4 sm:px-5 xl:border-l-0">
-                    <div className="whitespace-nowrap text-[12px] font-medium text-[#4c515c]">实时聚合带宽</div>
-                    <div className="font-mono-num mt-2 text-[14px] font-semibold text-[#1d1d1f]">
+                  <div className="border-l border-[#0f172a]/[0.07] px-4 py-4 sm:px-5 xl:border-l-0">
+                    <div className="whitespace-nowrap text-[12px] font-medium text-[#556070]">实时聚合带宽</div>
+                    <div className="font-mono-num mt-2 text-[15px] font-semibold tracking-[-0.015em] text-[#111827]">
                       ↓ {formatSpeed(totalRxSpeed)}
                     </div>
-                    <div className="font-mono-num mt-0.5 text-[13px] font-medium text-[#4c515c]">
+                    <div className="font-mono-num mt-1 text-[13px] font-medium text-[#4c5565]">
                       ↑ {formatSpeed(totalTxSpeed)}
                     </div>
                   </div>
 
                   <div className="px-4 py-4 sm:px-5">
-                    <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-[#4c515c]">
+                    <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-[#556070]">
                       <span className="whitespace-nowrap">边缘可用率</span>
                       <span
                         title={edgeStatusLabel}
@@ -875,34 +901,34 @@ export function App() {
                         className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full"
                         style={{
                           backgroundColor: edgeStatusColor,
-                          boxShadow: `0 0 0 3px ${edgeStatusColor}26`,
+                          boxShadow: `0 0 0 3px ${edgeStatusColor}24, inset 0 1px 0 rgba(255,255,255,0.45)`,
                         }}
                       />
                     </div>
                     <div className="apple-nums mt-1.5 flex flex-wrap items-baseline gap-x-2">
                       <RollingNumber
                         value={`${edgeOkPct}%`}
-                        className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]"
+                        className="text-[26px] font-semibold tracking-[-0.03em] text-[#111827] sm:text-[28px]"
                       />
                       {avgNodeLatency !== null && (
-                        <span className="text-[12px] text-[#4c515c]">
+                        <span className="text-[12px] font-medium text-[#4c5565]">
                           均延 <RollingNumber value={`${avgNodeLatency}`} /> ms
                         </span>
                       )}
                     </div>
-                    <div className="mt-0.5 text-[12px] text-[#555a66]">
+                    <div className="mt-1 text-[12px] text-[#556070]">
                       {edgeTargets.length} 站点 · {activeData.probeTargets.length - edgeTargets.length} 节点拨测
                     </div>
                   </div>
 
-                  <div className="border-l border-[#1d1d1f]/[0.07] px-4 py-4 sm:px-5 xl:border-l-0">
-                    <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-[#4c515c]">
+                  <div className="border-l border-[#0f172a]/[0.07] px-4 py-4 sm:px-5 xl:border-l-0">
+                    <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-[#556070]">
                       <span className="whitespace-nowrap">月度账单</span>
                       <button
                         type="button"
                         onClick={() => setCurrencyOverride(CURRENCY_CYCLE[displayCurrency])}
                         aria-label={`切换结算货币，当前 ${displayCurrency}`}
-                        className="inline-flex min-h-[28px] items-center rounded-full bg-white/85 px-2.5 font-mono-num text-[11.5px] font-semibold text-[#1d1d1f] shadow-[0_0_0_0.5px_rgba(15,23,42,0.12)] transition hover:bg-white"
+                        className="liquid-btn inline-flex min-h-[26px] items-center rounded-[8px] px-2.5 font-mono-num text-[11px] font-semibold text-[#111827]"
                         title="点击切换 CNY / USD / EUR"
                       >
                         {displayCurrency}
@@ -911,10 +937,10 @@ export function App() {
                     <div className="apple-nums mt-1.5 flex items-baseline gap-1">
                       <RollingNumber
                         value={formatCurrency(monthlyCost, displayCurrency)}
-                        className="text-[24px] font-semibold tracking-[-0.025em] text-[#1d1d1f] sm:text-[26px]"
+                        className="text-[26px] font-semibold tracking-[-0.03em] text-[#111827] sm:text-[28px]"
                       />
                     </div>
-                    <div className="mt-0.5 truncate text-[12px] text-[#555a66]">
+                    <div className="mt-1 truncate text-[12px] text-[#556070]">
                       {soonestExpiry
                         ? `最近到期 ${soonestExpiry.name} (${soonestExpiry.days <= 0 ? "已到期" : `${soonestExpiry.days}天`})`
                         : "暂未配置到期日"}
@@ -987,7 +1013,7 @@ export function App() {
                 </div>
 
                 {filteredNodes.length === 0 ? (
-                  <div className="liquid-glass rounded-[26px] p-10 text-center">
+                  <div className="liquid-glass rounded-[16px] p-10 text-center">
                     <h2 className="text-[16px] font-semibold text-[#1d1d1f]">
                       {activeData.nodes.length === 0 ? "暂无已接入主机" : "没有匹配的主机"}
                     </h2>
@@ -1033,7 +1059,7 @@ export function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="liquid-glass overflow-x-auto rounded-[24px] p-2">
+                  <div className="liquid-glass overflow-x-auto rounded-[16px] p-2">
                     <table className="w-full text-left text-[12.5px]">
                       <thead className="border-b border-[#1d1d1f]/[0.08] text-[12px] text-[#4c515c]">
                         <tr>
@@ -1159,6 +1185,7 @@ export function App() {
                 onChangeShader={setShaderPreset}
                 onSave={handleSaveSettings}
                 onTestAlert={handleTestAlert}
+                onChangePassword={handleChangePassword}
                 onOpenLogin={() => setLoginOpen(true)}
               />
             )}

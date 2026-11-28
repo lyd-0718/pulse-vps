@@ -98,6 +98,20 @@ export async function loginAdmin(password: string): Promise<{ token: string; exp
   return res;
 }
 
+export async function changeAdminPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean; token: string; expiresAt: number }> {
+  const res = await request<{ ok: boolean; token: string; expiresAt: number }>("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (res.token) {
+    setStoredToken(res.token);
+  }
+  return res;
+}
+
 export function fetchNodeHistory(
   nodeId: string,
   range: "1h" | "6h" | "24h" | "7d" | "30d",

@@ -88,6 +88,50 @@ func (srv *Server) routes() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]bool{"authenticated": srv.isAdmin(r)})
 	})
 
+	mux.HandleFunc("POST /api/auth/change-password", func(w http.ResponseWriter, r *http.Request) {
+		if !srv.isAdmin(r) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "需要管理员权限"})
+			return
+		}
+		var body struct {
+			CurrentPassword string `json:"currentPassword"`
+			NewPassword     string `json:"newPassword"`
+		}
+		if err := readJSON(r, &body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求格式有误"})
+			return
+		}
+		if !srv.auth.VerifyPassword(body.CurrentPassword) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "当前管理员密码不正确"})
+			return
+		}
+		newPwd := strings.TrimSpace(body.NewPassword)
+		if len(newPwd) < 6 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "新密码长度不能少于 6 位"})
+			return
+		}
+		if len(newPwd) > 128 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "新密码长度不能超过 128 位"})
+			return
+		}
+		if body.CurrentPassword == newPwd {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "新密码不能与当前密码相同"})
+			return
+		}
+		token, exp, err := srv.auth.ChangePassword(srv.store, newPwd)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "保存新密码失败: " + err.Error()})
+			return
+		}
+		// Invalidate all previously connected WebSocket clients signed with the old secret
+		srv.hub.DisconnectAll()
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":        true,
+			"token":     token,
+			"expiresAt": exp,
+		})
+	})
+
 	mux.HandleFunc("GET /api/bootstrap", func(w http.ResponseWriter, r *http.Request) {
 		data, err := srv.store.BuildBootstrap(srv.isAdmin(r))
 		if err != nil {
@@ -664,6 +708,7 @@ func main() {
 	defer store.Close()
 
 	auth := NewAuthManager(os.Getenv("ADMIN_PASSWORD"), os.Getenv("JWT_SECRET"))
+	auth.LoadFromStore(store)
 	hub := NewWSHub(store, auth)
 	alerts := NewAlertEngine(store)
 

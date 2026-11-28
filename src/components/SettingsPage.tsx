@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Lock, Send } from "lucide-react";
+import { Bell, Eye, EyeOff, KeyRound, Lock, Send } from "lucide-react";
 import type { AlertChannel, AlertConfig, CurrencyCode, PublicAccessMode, SettingsDto } from "../../shared/types";
 import type { ShaderPreset } from "./AmbientShader";
 import { InkSwitch } from "./ui-moments/InkSwitch";
@@ -7,9 +7,9 @@ import { LeafSegmentedControl } from "./ui-moments/LeafSegmentedControl";
 import { PlanPicker } from "./ui-moments/PlanPicker";
 
 const SHADER_OPTIONS: ReadonlyArray<{ id: ShaderPreset; label: string; desc: string; swatch: string }> = [
-  { id: "silk-mesh", label: "Silk Mesh", desc: "珠光天蓝丝绸", swatch: "linear-gradient(135deg,#c7d2fe,#fde6d2)" },
-  { id: "soft-dunes", label: "Soft Dunes", desc: "暖白香槟光晕", swatch: "linear-gradient(135deg,#f5d0c5,#f7efe5)" },
-  { id: "lagoon-mist", label: "Lagoon Mist", desc: "冰川湖蓝薄雾", swatch: "linear-gradient(135deg,#bae6fd,#ccebe3)" },
+  { id: "silk-mesh", label: "Silk Mesh", desc: "冷雾阳极铝光场", swatch: "linear-gradient(135deg,#b9cce8,#e9d9d0)" },
+  { id: "soft-dunes", label: "Soft Dunes", desc: "暖石膏香槟光晕", swatch: "linear-gradient(135deg,#e2cfc0,#cdd4e2)" },
+  { id: "lagoon-mist", label: "Lagoon Mist", desc: "冰川青釉薄雾", swatch: "linear-gradient(135deg,#b6d8d4,#bad0e8)" },
 ];
 
 const DEFAULT_ALERTS: AlertConfig = {
@@ -33,6 +33,7 @@ interface SettingsPageProps {
   onChangeShader: (preset: ShaderPreset) => void;
   onSave: (payload: Partial<SettingsDto>) => Promise<void>;
   onTestAlert: (alerts: AlertConfig) => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onOpenLogin: () => void;
 }
 
@@ -45,6 +46,7 @@ export function SettingsPage({
   onChangeShader,
   onSave,
   onTestAlert,
+  onChangePassword,
   onOpenLogin,
 }: SettingsPageProps) {
   const [siteTitle, setSiteTitle] = useState(settings.siteTitle);
@@ -55,6 +57,14 @@ export function SettingsPage({
   const [busy, setBusy] = useState(false);
   const [testingAlert, setTestingAlert] = useState(false);
   const [error, setError] = useState("");
+
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [pwdBusy, setPwdBusy] = useState(false);
+  const [pwdError, setPwdError] = useState("");
+  const [pwdSuccess, setPwdSuccess] = useState("");
 
   useEffect(() => {
     setSiteTitle(settings.siteTitle);
@@ -96,11 +106,47 @@ export function SettingsPage({
     }
   };
 
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authenticated) return;
+    setPwdError("");
+    setPwdSuccess("");
+    const trimmedNew = newPwd.trim();
+    if (!currentPwd) {
+      setPwdError("请输入当前管理员密码");
+      return;
+    }
+    if (trimmedNew.length < 6) {
+      setPwdError("新密码长度不能少于 6 位");
+      return;
+    }
+    if (trimmedNew !== confirmPwd.trim()) {
+      setPwdError("两次输入的新密码不一致");
+      return;
+    }
+    if (currentPwd === trimmedNew) {
+      setPwdError("新密码不能与当前密码相同");
+      return;
+    }
+    setPwdBusy(true);
+    try {
+      await onChangePassword(currentPwd, trimmedNew);
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+      setPwdSuccess("密码已更新并生效，其他设备的旧登录态已自动失效。");
+    } catch (err) {
+      setPwdError(err instanceof Error ? err.message : "修改密码失败，请重试");
+    } finally {
+      setPwdBusy(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
       {/* Left 7 Cols: Appearance, Site Settings & Alert Rules */}
       <form onSubmit={handleSubmit} className="space-y-5 xl:col-span-7">
-        <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
           <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
             浅色玻璃环境光场
           </h2>
@@ -117,10 +163,10 @@ export function SettingsPage({
           </div>
         </section>
 
-        <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
+              <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">
                 控制台与访客权限
               </h2>
               <p className="mt-0.5 text-[12.5px] text-[#4c515c]">
@@ -186,12 +232,12 @@ export function SettingsPage({
         </section>
 
         {/* Active Alert Push Settings */}
-        <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Bell className="h-4.5 w-4.5 text-[#0058c4]" aria-hidden="true" />
               <div>
-                <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
+                <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">
                   主动告警推送
                 </h2>
                 <p className="mt-0.5 text-[12px] text-[#4c515c]">
@@ -340,53 +386,146 @@ export function SettingsPage({
         </section>
       </form>
 
-      {/* Right 5 Cols: Self-Hosted Engine Status */}
+      {/* Right 5 Cols: Self-Hosted Engine Status + Admin Password Security */}
       <aside className="space-y-5 xl:col-span-5">
-        <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
-          <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
+          <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">
             自托管主控运行概览
           </h2>
           <p className="mt-0.5 text-[12.5px] text-[#4c515c]">
             独立 VPS 单二进制运行，零云端额度限制，与受监控主机完全物理隔离
           </p>
 
-          <div className="mt-4 liquid-inset divide-y divide-[#1d1d1f]/[0.07] rounded-[18px] px-4 text-[12.5px] text-[#4c515c]">
+          <div className="mt-4 liquid-inset divide-y divide-[#0f172a]/[0.07] rounded-[12px] px-4 text-[12.5px] text-[#4c515c]">
             <div className="flex items-center justify-between py-2.5">
               <span>实时传输通道</span>
-              <span className="inline-flex items-center gap-1.5 font-medium text-[#1d1d1f]">
+              <span className="inline-flex items-center gap-1.5 font-medium text-[#111827]">
                 <span
                   aria-hidden="true"
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: wsConnected ? "#22c55e" : "#f59e0b" }}
+                  style={{ backgroundColor: wsConnected ? "#16a34a" : "#d97706" }}
                 />
                 {wsConnected ? "WebSocket 已连接" : "HTTP 轮询兜底"}
               </span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <span>接入节点数</span>
-              <span className="font-mono-num font-semibold text-[#1d1d1f]">{liveNodeCount} 台</span>
+              <span className="font-mono-num font-semibold text-[#111827]">{liveNodeCount} 台</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <span>控制面引擎</span>
-              <span className="font-mono-num text-[#1d1d1f]">Go + SQLite (WAL)</span>
+              <span className="font-mono-num text-[#111827]">Go + SQLite (WAL)</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <span>采集节拍</span>
-              <span className="text-[#1d1d1f]">指标 2s · 三网异步 20s</span>
+              <span className="text-[#111827]">指标 2s · 三网异步 20s</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <span>历史数据保留</span>
-              <span className="text-[#1d1d1f]">性能与三网 30 天 · 站点 14 天</span>
+              <span className="text-[#111827]">性能与三网 30 天 · 站点 14 天</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <span>外部站点巡检</span>
-              <span className="text-[#1d1d1f]">每 2 分钟自动探测</span>
+              <span className="text-[#111827]">每 2 分钟自动探测</span>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <span>告警巡检频率</span>
-              <span className="text-[#1d1d1f]">每 30 秒判定一次</span>
+              <span className="text-[#111827]">每 30 秒判定一次</span>
             </div>
           </div>
+        </section>
+
+        {/* Admin Password Change */}
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4.5 w-4.5 text-[#0058c4]" aria-hidden="true" />
+              <div>
+                <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-[#111827]">
+                  管理员密码安全
+                </h2>
+                <p className="mt-0.5 text-[12px] text-[#4c515c]">
+                  PBKDF2-SHA256 加盐存入 SQLite，改密后自动轮换会话密钥
+                </p>
+              </div>
+            </div>
+            {authenticated && (
+              <button
+                type="button"
+                onClick={() => setShowPwd((v) => !v)}
+                aria-label={showPwd ? "隐藏密码明文" : "显示密码明文"}
+                className="liquid-btn inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#4c5565]"
+              >
+                {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            )}
+          </div>
+
+          {!authenticated ? (
+            <div className="liquid-inset mt-4 rounded-[12px] p-4 text-[12.5px] text-[#556070]">
+              登录管理员账号后可直接在线修改登录密码。
+            </div>
+          ) : (
+            <form onSubmit={handlePasswordSubmit} className="mt-4 space-y-3 text-[12.5px]">
+              <label className="block">
+                <span className="text-[#4c515c]">当前密码</span>
+                <input
+                  type={showPwd ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={currentPwd}
+                  onChange={(e) => setCurrentPwd(e.target.value)}
+                  placeholder="输入当前管理员密码"
+                  className="liquid-input mt-1 w-full rounded-[10px] px-3 py-2 text-[14px] sm:text-[13px]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[#4c515c]">新密码（至少 6 位）</span>
+                <input
+                  type={showPwd ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  placeholder="建议使用字母 + 数字组合"
+                  className="liquid-input mt-1 w-full rounded-[10px] px-3 py-2 text-[14px] sm:text-[13px]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[#4c515c]">确认新密码</span>
+                <input
+                  type={showPwd ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  placeholder="再次输入新密码"
+                  className="liquid-input mt-1 w-full rounded-[10px] px-3 py-2 text-[14px] sm:text-[13px]"
+                />
+              </label>
+
+              {pwdError && (
+                <div role="alert" className="rounded-[10px] bg-[#dc2626]/10 px-3 py-2 text-[12px] font-medium text-[#b91c1c]">
+                  {pwdError}
+                </div>
+              )}
+
+              {pwdSuccess && (
+                <div role="status" className="rounded-[10px] bg-[#16a34a]/12 px-3 py-2 text-[12px] font-medium text-[#156230]">
+                  {pwdSuccess}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  disabled={pwdBusy || !currentPwd || !newPwd || !confirmPwd}
+                  className="liquid-btn-primary min-h-[38px] rounded-full px-5 text-[13px] font-medium disabled:opacity-50"
+                >
+                  {pwdBusy ? "正在更新..." : "更新管理员密码"}
+                </button>
+              </div>
+            </form>
+          )}
         </section>
       </aside>
     </div>

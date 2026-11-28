@@ -72,37 +72,40 @@ void main() {
 
   vec3 col;
   if (u_mode == 0) {
-    vec3 cPearl = vec3(0.935, 0.950, 0.980);
-    vec3 cSky   = vec3(0.715, 0.830, 0.975);
-    vec3 cLilac = vec3(0.815, 0.775, 0.960);
-    vec3 cWarm  = vec3(0.970, 0.865, 0.820);
+    // Anodized Cool Mist & Optical Silk — tonal separation so ceramic glass cards pop crisply
+    vec3 cBase  = vec3(0.875, 0.896, 0.930);
+    vec3 cSky   = vec3(0.755, 0.822, 0.925);
+    vec3 cSlate = vec3(0.818, 0.810, 0.918);
+    vec3 cWarm  = vec3(0.922, 0.862, 0.832);
 
-    col = mix(cPearl, cSky, smoothstep(0.16, 0.82, field) * 0.84);
-    col = mix(col, cLilac, smoothstep(0.26, 0.86, warp.y * sweep) * 0.70);
-    col = mix(col, cWarm, bottomGlow * (0.48 + 0.35 * warp.x) * 0.72);
-    col = mix(col, vec3(0.982, 0.988, 0.998), cornerGlow * 0.36);
+    col = mix(cBase, cSky, smoothstep(0.14, 0.84, field) * 0.78);
+    col = mix(col, cSlate, smoothstep(0.24, 0.88, warp.y * sweep) * 0.56);
+    col = mix(col, cWarm, bottomGlow * (0.44 + 0.34 * warp.x) * 0.62);
+    col = mix(col, vec3(0.935, 0.948, 0.972), cornerGlow * 0.34);
   } else if (u_mode == 1) {
-    vec3 cAlabaster = vec3(0.968, 0.956, 0.942);
-    vec3 cSand      = vec3(0.955, 0.885, 0.815);
-    vec3 cRose      = vec3(0.955, 0.835, 0.845);
-    vec3 cSlate     = vec3(0.845, 0.865, 0.925);
+    // Warm Travertine & Brushed Champagne
+    vec3 cStone = vec3(0.902, 0.886, 0.864);
+    vec3 cSand  = vec3(0.875, 0.824, 0.768);
+    vec3 cRose  = vec3(0.888, 0.808, 0.812);
+    vec3 cSlate = vec3(0.798, 0.818, 0.872);
 
-    col = mix(cAlabaster, cSand, smoothstep(0.18, 0.84, field) * 0.72);
-    col = mix(col, cRose, smoothstep(0.28, 0.86, sweep * warp.y) * 0.56);
-    col = mix(col, cSlate, bottomGlow * (0.4 + 0.35 * warp.x) * 0.58);
-    col = mix(col, vec3(0.992, 0.986, 0.978), cornerGlow * 0.45);
+    col = mix(cStone, cSand, smoothstep(0.16, 0.84, field) * 0.70);
+    col = mix(col, cRose, smoothstep(0.26, 0.86, sweep * warp.y) * 0.50);
+    col = mix(col, cSlate, bottomGlow * (0.38 + 0.34 * warp.x) * 0.54);
+    col = mix(col, vec3(0.942, 0.932, 0.918), cornerGlow * 0.38);
   } else {
-    vec3 cMist  = vec3(0.945, 0.968, 0.975);
-    vec3 cAqua  = vec3(0.755, 0.905, 0.890);
-    vec3 cAzure = vec3(0.730, 0.845, 0.965);
-    vec3 cCloud = vec3(0.980, 0.988, 0.994);
+    // Glacier Slate & Celadon Glass
+    vec3 cMist  = vec3(0.865, 0.904, 0.916);
+    vec3 cAqua  = vec3(0.720, 0.850, 0.842);
+    vec3 cAzure = vec3(0.715, 0.812, 0.918);
+    vec3 cCloud = vec3(0.928, 0.945, 0.955);
 
-    col = mix(cMist, cAzure, smoothstep(0.18, 0.82, field) * 0.75);
-    col = mix(col, cAqua, smoothstep(0.26, 0.86, sweep * (0.4 + warp.x * 0.6)) * 0.68);
-    col = mix(col, cCloud, cornerGlow * 0.48);
+    col = mix(cMist, cAzure, smoothstep(0.16, 0.84, field) * 0.74);
+    col = mix(col, cAqua, smoothstep(0.24, 0.86, sweep * (0.4 + warp.x * 0.6)) * 0.64);
+    col = mix(col, cCloud, cornerGlow * 0.40);
   }
 
-  float grain = (hash21(gl_FragCoord.xy + fract(u_time) * 13.0) - 0.5) * 0.018;
+  float grain = (hash21(gl_FragCoord.xy + fract(u_time) * 13.0) - 0.5) * 0.022;
   col = clamp(col + grain, 0.0, 1.0);
 
   gl_FragColor = vec4(col, 1.0);

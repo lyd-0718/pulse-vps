@@ -109,19 +109,21 @@ export function Sidebar({
       >
         {!isCompact && (
           <div className="flex min-w-0 items-center gap-2.5">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{
-                backgroundColor: fleetDotColor,
-                boxShadow: `0 0 0 3px ${fleetDotColor}26`,
-              }}
-            />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#0f172a]/[0.09] bg-white/95 shadow-[0_1px_2px_rgba(15,23,42,0.08),inset_0_1px_0_#ffffff]">
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5 rounded-full"
+                style={{
+                  backgroundColor: fleetDotColor,
+                  boxShadow: `0 0 0 3px ${fleetDotColor}24, inset 0 1px 0 rgba(255,255,255,0.5)`,
+                }}
+              />
+            </div>
             <div className="min-w-0 leading-tight">
-              <div className="truncate text-[14.5px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
+              <div className="truncate text-[14.5px] font-semibold tracking-[-0.02em] text-[#111827]">
                 {siteTitle}
               </div>
-              <div className="truncate font-mono-num text-[11px] text-[#555a66]">{siteDomain}</div>
+              <div className="truncate font-mono-num text-[11px] text-[#556070]">{siteDomain}</div>
             </div>
           </div>
         )}

@@ -229,6 +229,16 @@ func (h *WSHub) DisconnectUnauthenticated() {
 	h.mu.Unlock()
 }
 
+func (h *WSHub) DisconnectAll() {
+	h.mu.Lock()
+	for c := range h.clients {
+		delete(h.clients, c)
+		close(c.send)
+		_ = c.conn.Close()
+	}
+	h.mu.Unlock()
+}
+
 func (h *WSHub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

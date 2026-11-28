@@ -139,7 +139,7 @@ export function NodeDetailPage({
   return (
     <div className="space-y-5 lg:space-y-6">
       {/* Section 1: Host Identity + Full-Width Live Telemetry & Monthly Traffic Quota */}
-      <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
+      <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
         <div className="apple-divider flex flex-wrap items-start justify-between gap-4 border-b pb-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -226,7 +226,7 @@ export function NodeDetailPage({
 
         {/* Full-Width Gauges + Live Throughput + Monthly Traffic Quota */}
         <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-12">
-          <div className="liquid-inset grid grid-cols-2 gap-4 rounded-[20px] p-4 sm:grid-cols-4 xl:col-span-7">
+          <div className="liquid-inset grid grid-cols-2 gap-4 rounded-[12px] p-4 sm:grid-cols-4 xl:col-span-7">
             <RingGauge
               value={node.cpuUsage}
               label="CPU"
@@ -269,7 +269,7 @@ export function NodeDetailPage({
             </div>
           </div>
 
-          <div className="liquid-inset flex flex-col justify-center rounded-[20px] p-4 xl:col-span-5">
+          <div className="liquid-inset flex flex-col justify-center rounded-[12px] p-4 xl:col-span-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-[12.5px]">
               <span className="font-medium text-[#1d1d1f]">
                 本月流量配额
@@ -299,7 +299,7 @@ export function NodeDetailPage({
       </section>
 
       {/* Section 2: Full-Width Performance History Charts */}
-      <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
+      <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">性能与三网历史趋势</h3>
@@ -323,11 +323,11 @@ export function NodeDetailPage({
         </div>
 
         {loadingHistory ? (
-          <div className="liquid-inset mt-4 flex h-56 items-center justify-center rounded-[20px]">
+          <div className="liquid-inset mt-4 flex h-56 items-center justify-center rounded-[12px]">
             <SignalReturnLoader size={44} label="正在加载历史采样..." />
           </div>
         ) : historyError ? (
-          <div className="liquid-inset mt-4 flex h-48 flex-col items-center justify-center gap-2.5 rounded-[20px] px-4 text-center">
+          <div className="liquid-inset mt-4 flex h-48 flex-col items-center justify-center gap-2.5 rounded-[12px] px-4 text-center">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#c41e14]">
               <AlertCircle className="h-4 w-4" />
               历史曲线加载失败：{historyError}
@@ -341,12 +341,12 @@ export function NodeDetailPage({
             </button>
           </div>
         ) : chartData.length === 0 ? (
-          <div className="liquid-inset mt-4 flex h-48 items-center justify-center rounded-[20px] px-4 text-center text-[12.5px] text-[#555a66]">
+          <div className="liquid-inset mt-4 flex h-48 items-center justify-center rounded-[12px] px-4 text-center text-[12.5px] text-[#555a66]">
             暂无该时间段历史采样（Agent 每 1 分钟落盘一次历史曲线）
           </div>
         ) : (
           <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <div className="liquid-inset rounded-[20px] p-4">
+            <div className="liquid-inset rounded-[12px] p-4">
               <div className="mb-3 flex items-center justify-between text-[12.5px]">
                 <span className="font-medium text-[#1d1d1f]">CPU 与内存占用 (%)</span>
                 <div className="flex items-center gap-3 text-[11.5px] text-[#4c515c]">
@@ -378,7 +378,7 @@ export function NodeDetailPage({
               </div>
             </div>
 
-            <div className="liquid-inset rounded-[20px] p-4">
+            <div className="liquid-inset rounded-[12px] p-4">
               <div className="mb-3 flex items-center justify-between text-[12.5px]">
                 <span className="font-medium text-[#1d1d1f]">网络吞吐带宽 (MB/s)</span>
                 <div className="flex items-center gap-3 text-[11.5px] text-[#4c515c]">
@@ -411,7 +411,7 @@ export function NodeDetailPage({
             </div>
 
             {hasProbeHistory && (
-              <div className="liquid-inset rounded-[20px] p-4 xl:col-span-2">
+              <div className="liquid-inset rounded-[12px] p-4 xl:col-span-2">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
                   <span className="font-medium text-[#1d1d1f]">全国三网平均延迟趋势 (ms)</span>
                   <div className="flex items-center gap-3 text-[11.5px] text-[#4c515c]">
@@ -447,7 +447,7 @@ export function NodeDetailPage({
 
       {/* Section 3: 2-Column Bento — Nationwide Probes (7 cols) + Hardware & Billing Specs (5 cols) */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-        <section className="liquid-glass rounded-[24px] p-5 sm:p-6 xl:col-span-7">
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6 xl:col-span-7">
           <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-baseline gap-2.5">
               <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">线路拨测延迟</h3>
@@ -503,7 +503,7 @@ export function NodeDetailPage({
           )}
         </section>
 
-        <section className="liquid-glass rounded-[24px] p-5 sm:p-6 xl:col-span-5">
+        <section className="liquid-glass rounded-[16px] p-5 sm:p-6 xl:col-span-5">
           <h3 className="mb-3.5 text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
             主机规格与资产台账
           </h3>
@@ -587,7 +587,7 @@ export function NodeDetailPage({
       </div>
 
       {/* Section 4: Docker Containers on this host */}
-      <section className="liquid-glass rounded-[24px] p-5 sm:p-6">
+      <section className="liquid-glass rounded-[16px] p-5 sm:p-6">
         <div className="mb-3.5 flex items-center justify-between">
           <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">
             Docker 容器 <span className="font-normal text-[#555a66]">({node.containers.length})</span>

@@ -79,7 +79,7 @@ export function ContainersView({ nodes, onSelectNode }: ContainersViewProps) {
   return (
     <div className="space-y-5">
       {/* Clean Activity Monitor Summary Bar (decorative dot matrix removed) */}
-      <section className="liquid-glass grid grid-cols-2 divide-y divide-[#1d1d1f]/[0.07] rounded-[24px] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+      <section className="liquid-glass grid grid-cols-2 divide-y divide-[#1d1d1f]/[0.07] rounded-[16px] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
         <div className="px-5 py-4">
           <div className="text-[12px] font-medium text-[#4c515c]">容器总数</div>
           <div className="apple-nums mt-1 text-[24px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">

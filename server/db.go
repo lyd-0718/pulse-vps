@@ -310,6 +310,14 @@ func (s *Store) ReadSettings(includeSecrets bool) (SettingsDto, error) {
 	return dto, nil
 }
 
+func (s *Store) GetSetting(key string) string {
+	var val string
+	if err := s.db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&val); err != nil {
+		return ""
+	}
+	return val
+}
+
 func (s *Store) UpdateSettings(updates map[string]string) error {
 	if len(updates) == 0 {
 		return nil
