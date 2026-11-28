@@ -8,11 +8,9 @@ import {
   HardDrive,
   MemoryStick,
   RefreshCw,
-  Tag,
 } from "lucide-react";
 import type { NodeDto, NodeProbeResult } from "../../shared/types";
 import {
-  computeRemainingValue,
   cycleLabel,
   daysUntil,
   formatBytes,
@@ -82,7 +80,6 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
     trafficLimitBytes > 0 ? Math.min(100, (node.trafficUsedBytes / trafficLimitBytes) * 100) : 0;
 
   const expireDays = daysUntil(node.expireDate);
-  const remainingValue = computeRemainingValue(node.price, node.billingCycle, node.expireDate);
   const isWarning = node.online && (node.cpuUsage >= 85 || memPct >= 90 || trafficPct >= 85);
   const statusColor = !node.online ? "#dc2626" : isWarning ? "#d97706" : "#16a34a";
 
@@ -339,15 +336,11 @@ export function NodeCard({ node, onSelect }: NodeCardProps) {
             </span>
           </div>
           <div
-            className="font-mono-num flex items-center gap-0.5 truncate text-[#4c5565]"
-            title="按剩余天数折算的当前周期剩余价值"
+            className="apple-nums flex items-center gap-0.5 truncate text-[#4c5565]"
+            title={`每月 ${node.trafficResetDay} 日重置流量周期`}
           >
-            <Tag className="h-3 w-3 shrink-0 text-[#64748b]" aria-hidden="true" />
-            <span className="truncate">
-              {remainingValue !== null
-                ? formatCurrency(remainingValue, node.currency)
-                : `每月 ${node.trafficResetDay} 日重置`}
-            </span>
+            <RefreshCw className="h-2.5 w-2.5 shrink-0 text-[#64748b]" aria-hidden="true" />
+            <span className="truncate">每月 {node.trafficResetDay} 日重置</span>
           </div>
         </div>
       </div>
